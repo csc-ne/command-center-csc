@@ -1,0 +1,121 @@
+# =========== RDA - RELATÓRIOS DE DESEMPENHO AUTOMÁTICOS ============
+# docker-compose.yml — containers do RDA (frontend + backend separados)
+# ===================================================================
+#
+# Execução:
+#   cd rda/docker
+#   docker compose --env-file C:/env/.env -f docker-compose.yml up -d
+#   docker compose -f docker-compose.yml logs -f
+#   docker compose -f docker-compose.yml down
+#
+# O RDA roda na porta 5050 por padrão (configurável via RDA_FRONTEND_PORT no .env).
+# Frontend: Node.js Express (proxy + estático) — porta 5050
+# Backend: Python Flask (geração de PDF) — porta 5051 (interna)
+#
+# Autenticação compartilhada com RTS via cookie rts_token.
+# Não compartilha rede nem volumes com RTS/RTA.
+
+name: rda
+
+services:
+
+  rda-frontend:
+    image: rda-frontend:latest
+    container_name: rda-frontend
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.rda-frontend
+    restart: unless-stopped
+    env_file:
+      - C:/env/.env
+    environment:
+      TZ: "America/Recife"
+      NODE_ENV: "production"
+      RDA_BACKEND_URL: "http://rda-backend:5051"
+    ports:
+      - "${RDA_FRONTEND_PORT:-5050}:5050"
+    volumes:
+      # Bind-mount para desenvolvimento rápido (sem rebuild)
+      - ../frontend/server.js:/app/frontend/server.js:ro
+      - ../frontend/index.html:/app/frontend/index.html:ro
+      # Logos — montadas dentro do path estatico para /logo/* funcionar
+      - ../logo:/app/frontend/logo:ro
+      # .env montado para dotenv.config()
+      - C:/env/.env:/app/.env:ro
+    depends_on:
+      rda-backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:5050/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - rda-net
+
+  rda-backend:
+    image: rda-backend:latest
+    container_name: rda-backend
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.rda-backend
+    restart: unless-stopped
+    env_file:
+      - C:/env/.env
+    environment:
+      TZ: "America/Recife"
+      RDA_PORT: "5051"
+      MPLBACKEND: "Agg"
+      CONTEXTILY_CACHE_DIR: "/app/.cache/contextily"
+    # Porta NÃO exposta ao host — só acessível via rede Docker (rda-net)
+    expose:
+      - "5051"
+    volumes:
+      # Bind-mount para desenvolvimento rápido
+      - ../backend/__init__.py:/app/backend/__init__.py:ro
+      - ../backend/app.py:/app/backend/app.py:ro
+      - ../backend/report_0.4.py:/app/backend/report_0.4.py:ro
+      - ../kernel:/app/kernel:ro
+      - ../pdf:/app/pdf:ro
+      - ../fonts:/app/fonts:ro
+      - ../labels:/app/labels:ro
+      - ../icons:/app/icons:ro
+      # .env montado para dotenv
+      - C:/env/.env:/app/.env:ro
+      # Relatórios gerados persistem no host
+      - ../relatorios_gerados:/app/relatorios_gerados
+      # Relatórios mensais automáticos (persistem indefinidamente)
+      - ../relatorios_mensais:/app/relatorios_mensais
+      # Cache de tiles do contextily (evita re-download a cada run)
+      - rda-tile-cache:/app/.cache/contextily
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:5051/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - rda-net
+
+volumes:
+  rda-tile-cache:
+    driver: local
+
+networks:
+  rda-net:
+    driver: bridge

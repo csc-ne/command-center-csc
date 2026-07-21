@@ -1,0 +1,48 @@
+# =========== COMMAND CENTER CSC ============
+# docker-compose.yml — Desenvolvimento local (só PostgreSQL no Docker)
+# ================================================================
+#
+# Uso LOCAL:
+#   cd portal/docker
+#   docker compose --env-file C:/env/.env up -d
+#
+#   Depois, em terminais separados:
+#   cd portal/backend  && npm run dev
+#   cd portal/frontend && npm run dev
+#
+# Só o PostgreSQL roda no Docker (porta 5433 no host).
+# Backend (porta 4000) e Frontend (porta 4001) rodam direto com Node.
+
+name: csc-portal
+
+services:
+
+  portal-db:
+    image: postgres:16-alpine
+    container_name: portal-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       "${DB_NAME:-portal_auth}"
+      POSTGRES_USER:     "${DB_USER:-portal}"
+      POSTGRES_PASSWORD: "${DB_PASSWORD:-portal_secret}"
+      TZ: "America/Recife"
+    ports:
+      - "${PORTAL_DB_PORT:-5433}:5432"
+    volumes:
+      - portal-pgdata:/var/lib/postgresql/data
+      - ../database/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-portal} -d ${DB_NAME:-portal_auth}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  portal-pgdata:
+    driver: local

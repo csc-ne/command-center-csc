@@ -1,0 +1,79 @@
+# =========== RTS - REAL TIME SUPPORT ============
+# .dockerignore — controla o que entra no contexto de build
+# ================================================
+
+# Python
+venv/
+.venv/
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Node
+node_modules/
+**/node_modules/
+npm-debug.log
+yarn-error.log
+
+# Git / VCS
+.git/
+.gitignore
+.gitattributes
+
+# Documentação histórica (grande e não necessária no container)
+.archive/
+RTS/
+*.md
+!docker/README.md
+
+# Debug scripts (não vão pra imagem)
+debug/
+
+# Builds antigos
+initializer/_old/
+
+# Ambiente
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Logs históricos (o runtime escreve em /app/logs/output via volume mount)
+logs/output/*.log
+logs/output/*.txt
+logs/src/logs/*.log
+logs/src/logs/*.txt
+logs/rts_continuous_*.log
+
+# Credenciais — NUNCA copiar para imagem
+connection/serviceAccount.json
+connection/*.json
+!connection/db.js
+!connection/server.js
+create_sa.py
+
+# Windows-specific
+*.bat
+*.ps1
+desktop.ini
+
+# Artefatos Docker — preserva somente o que o build precisa
+# (Dockerfile.* e requirements.docker.txt). Tudo mais da pasta
+# docker/ fica fora do contexto para evitar recursão e vazamento
+# de .env.vm, scripts de host e documentação.
+docker/*
+!docker/Dockerfile.core
+!docker/Dockerfile.dashboard
+!docker/requirements.docker.txt
+
+# Pasta de arquivos legados movidos na higienizacao (nao vai para a imagem)
+_legacy/

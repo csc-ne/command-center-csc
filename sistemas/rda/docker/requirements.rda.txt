@@ -1,0 +1,36 @@
+# RDA Backend — dependências Python para Docker
+# Apenas o necessário para geração de relatórios PDF
+
+flask>=3.0
+flask-cors>=4.0
+python-dotenv>=1.0
+gunicorn>=21.2
+
+# Banco de dados
+psycopg2-binary>=2.9
+
+# Geração de PDF
+reportlab>=4.0
+PyPDF2>=3.0
+
+# Dados e análise
+pandas>=2.0
+numpy>=1.24
+scipy>=1.10
+matplotlib>=3.7
+geopandas>=0.14
+shapely>=2.0
+
+# Dependências geoespaciais
+pyproj>=3.6
+fiona>=1.9
+contextily>=1.5
+
+# Estatística
+statsmodels>=0.14
+
+# Utilitários
+tqdm>=4.65
+Pillow>=10.0
+openpyxl>=3.1
+requests>=2.31

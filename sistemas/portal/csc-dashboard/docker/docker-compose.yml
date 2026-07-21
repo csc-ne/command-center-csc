@@ -1,0 +1,129 @@
+# =========== COMMAND CENTER CSC 2.0 — Machine List + POPs ============
+# docker-compose.yml — 3 serviços: PostgreSQL dedicado + Backend + Frontend
+# ======================================================================
+#
+# Execução:
+#   cd portal/csc-dashboard/docker
+#   docker compose --env-file C:/env/.env up -d --build
+#
+# .env centralizado em C:\env\.env (Windows Server VM).
+#
+# Portas padrão:
+#   - PostgreSQL: 5434 (host) → 5432 (container)
+#   - Backend API: 4010
+#   - Frontend:    4011
+
+name: csc-dashboard
+
+services:
+
+  csc-db:
+    image: postgres:16-alpine
+    container_name: csc-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       "${CSC_DB_NAME:-csc_dashboard}"
+      POSTGRES_USER:     "${CSC_DB_USER:-csc}"
+      POSTGRES_PASSWORD: "${CSC_DB_PASSWORD:-csc_secret}"
+      TZ: "America/Recife"
+    ports:
+      - "${CSC_DB_PORT:-5434}:5432"
+    volumes:
+      - csc-pgdata:/var/lib/postgresql/data
+      - ../database/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${CSC_DB_USER:-csc} -d ${CSC_DB_NAME:-csc_dashboard}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - csc-net
+
+  csc-backend:
+    image: csc-backend:latest
+    container_name: csc-backend
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.backend
+    restart: unless-stopped
+    environment:
+      CSC_DB_HOST:     csc-db
+      CSC_DB_PORT:     "5432"
+      CSC_DB_NAME:     "${CSC_DB_NAME:-csc_dashboard}"
+      CSC_DB_USER:     "${CSC_DB_USER:-csc}"
+      CSC_DB_PASSWORD: "${CSC_DB_PASSWORD:-csc_secret}"
+      CSC_BACKEND_PORT: "4010"
+      PORTAL_JWT_SECRET: "${PORTAL_JWT_SECRET}"
+      CSC_UPLOAD_ALLOWED_EMAILS: "${CSC_UPLOAD_ALLOWED_EMAILS}"
+      TZ: "America/Recife"
+    ports:
+      - "${CSC_BACKEND_PORT:-4010}:4010"
+    depends_on:
+      csc-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:4010/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - csc-net
+    # Bind-mount para dev — alterações no backend pegam com restart
+    volumes:
+      - ../backend/server.js:/app/server.js:ro
+      - ../backend/mapper.js:/app/mapper.js:ro
+      - ../backend/db.js:/app/db.js:ro
+
+  csc-frontend:
+    image: csc-frontend:latest
+    container_name: csc-frontend
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.frontend
+    restart: unless-stopped
+    environment:
+      CSC_FRONTEND_PORT: "4011"
+      CSC_BACKEND_URL:   "http://csc-backend:4010"
+      TZ: "America/Recife"
+    ports:
+      - "${CSC_FRONTEND_PORT:-4011}:4011"
+    depends_on:
+      csc-backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:4011/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - csc-net
+    # Bind-mount para dev — alterações pegam com restart do container
+    volumes:
+      - ../frontend/template.html:/app/template.html:ro
+      - ../frontend/server.js:/app/server.js:ro
+
+volumes:
+  csc-pgdata:
+    driver: local
+
+networks:
+  csc-net:
+    driver: bridge

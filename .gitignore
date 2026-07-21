@@ -1,0 +1,78 @@
+# ===================================================================
+# .gitignore — Command Center CSC
+# ===================================================================
+# Repo publico: nenhum segredo, nenhum artefato regeneravel, nenhum
+# output de sistema. Tudo isso mora no C:\env\.env ou no host da VM.
+# ===================================================================
+
+# ---- Segredos (segredos moram em C:\env\.env, fora do repo) ----
+.env
+.env.*
+!.env.example
+_SECRETS_CONSOLIDATED.txt
+
+# ---- Firebase service account (gerado por sistemas/rts/create_sa.py) ----
+sistemas/rts/connection/serviceAccount.json
+sistemas/rts/connection/*.json
+
+# ---- John Deere OAuth token cache (rotacionado em runtime) ----
+sistemas/rts/.token_cache.json
+
+# ---- Node ----
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json.bak
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+.pytest_cache/
+*.egg-info/
+
+# ---- Build outputs ----
+dist/
+build/
+.next/
+.nuxt/
+
+# ---- Logs ----
+*.log
+sistemas/rts/logs/output/
+logs/output/
+
+# ---- Outputs dos sistemas (nao versionar PDFs/CSVs/xlsx gerados) ----
+sistemas/rda/relatorios_gerados/*
+!sistemas/rda/relatorios_gerados/.gitkeep
+sistemas/rda/relatorios_mensais/*
+!sistemas/rda/relatorios_mensais/.gitkeep
+sistemas/rda/relatorios_mensais/*.marker
+
+# ---- Scripts one-shot (missao cumprida na reorg de 2026-07-21) ----
+_CLEANUP.ps1
+_REORG.ps1
+_INIT_GIT.ps1
+
+# ---- Editores / SO ----
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*.swo
+
+# ---- Firebase deploy artifacts ----
+.firebase/
+firebase-debug.log
+
+# ---- Backups avulsos ----
+*.bak
+*.backup
+*.old
+*.zip

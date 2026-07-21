@@ -1,0 +1,1893 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" type="text/css" href="style.css" />
+    <link rel="icon" type="image/png" href="logo-rts.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/typed.js/2.0.12/typed.min.js" referrerpolicy="no-referrer"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/luxon@3.3.0/build/global/luxon.min.js"></script>
+
+    <script type="text/javascript" src="./node_modules/jscharting/dist/jscharting.js"></script>
+    <script type="text/javascript" src="./node_modules/jscharting/dist/modules/toolbar.js"></script>
+    <script type="text/javascript" src="./node_modules/jscharting/dist/modules/types.js"></script>
+    <script type="text/javascript" src="./node_modules/jscharting/dist/modules/maps.js"></script>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css"
+      integrity="sha256-kLaT2GOSpHechhsozzB+flnD+zUyjE2LlfWPgU04xyI=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"
+      integrity="sha256-WBkoXOwTeyKclOHuWtc+i2uENFpDZ9YPdf5Hf+D7ewM=" crossorigin=""></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
+
+    <title>Real Time Support — RTS</title>
+
+    <!-- ═══════════════════════════════════════════
+         TV MODE: ?tv=1 na URL ativa zoom para TV 50" Full HD
+         Exemplo: http://192.168.0.106:8080?tv=1
+    ════════════════════════════════════════════ -->
+    <script>
+      (function(){
+        var p = new URLSearchParams(window.location.search);
+        var z = p.get('tv');
+        if (z === '1' || z === 'true') {
+          document.documentElement.style.zoom = '1.4';
+        } else if (z) {
+          // Permite zoom customizado: ?tv=1.6
+          var n = parseFloat(z);
+          if (n > 0 && n < 5) document.documentElement.style.zoom = String(n);
+        }
+      })();
+    </script>
+
+    <!-- ═══════════════════════════════════════════
+         CSS: FILTROS DE FROTA NO HEADER
+    ════════════════════════════════════════════ -->
+    <style>
+      /* Contenedor dos filtros de frota no header */
+      .header-fleet-filters {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        margin: 0 16px;
+      }
+
+      /* Grupo individual de filtro */
+      .header-filter-group {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      /* Label do filtro */
+      .header-filter-label {
+        font-size: 0.85rem;
+        font-weight: 500;
+        color: #a0a0a0;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        white-space: nowrap;
+      }
+
+      /* Botões de toggle de frota */
+      .fleet-filter-link {
+        color: #b0b0b0;
+        font-weight: 700;
+        text-decoration: none;
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        transition: all 0.2s ease;
+        padding: 4px 8px;
+        border-radius: 4px;
+      }
+
+      .fleet-filter-link:hover {
+        color: #e0e0e0;
+      }
+
+      /* John Deere ativo */
+      .fleet-filter-link.jd-filter-link.active {
+        color: #F0AB00;
+        font-weight: 900;
+      }
+
+      /* Wirtgen ativo */
+      .fleet-filter-link.wtg-filter-link.active {
+        color: #78d4c9;
+        font-weight: 900;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="container">
+
+      <!-- ═══════════════════════════════════════════
+           HEADER
+      ════════════════════════════════════════════ -->
+      <header class="header-page">
+        <div class="logo">
+          <img class="logoRTS" src="logo-rts.png" alt="RTS" />
+          <div class="brand-text">
+            <span class="brand-name">RTS</span>
+            <span class="brand-sub">Real Time Support</span>
+          </div>
+        </div>
+
+        <div class="header-title">
+          <span class="header-live">
+            <span class="live-dot"></span>
+            <span id="live-clock">--:--</span>
+          </span>
+        </div>
+
+        <div class="btn-show-field-filters">
+          <!-- ═══════════════════════════════════════════
+               FILTROS DE FROTA (DROPDOWN)
+          ════════════════════════════════════════════ -->
+          <!-- FILTRO DE FROTA -->
+          <div style="display: flex; gap: 8px; align-items: center; margin-right: 12px;">
+            <label for="fleet-select" style="font-size: 0.85rem; font-weight: 500; color: #a0a0a0; text-transform: uppercase; letter-spacing: 0.5px;">Frota:</label>
+            <select id="fleet-select" onchange="onFleetFilterChange(this.value)" style="
+              padding: 6px 12px;
+              background-color: #1a1a1a;
+              color: #F0AB00;
+              border: 1px solid #3a3a3a;
+              border-radius: 4px;
+              font-size: 0.85rem;
+              font-weight: 700;
+              font-family: 'Inter', sans-serif;
+              text-transform: uppercase;
+              letter-spacing: 0.05em;
+              cursor: pointer;
+              transition: all 0.2s ease;
+            ">
+              <option value="AMBOS">AMBOS</option>
+              <option value="JD">JOHN DEERE</option>
+              <option value="WTG">WIRTGEN</option>
+            </select>
+          </div>
+
+          <!-- Botão Command Center (SSO / hub) — URL dinâmica: mesmo host, porta 4001 -->
+          <a class="header-action-btn" id="btn-command-link" href="#" title="Voltar ao Command Center"
+             style="display:inline-flex;align-items:center;gap:6px;text-decoration:none;color:inherit;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+              <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+            </svg>
+            <span class="btn-label" style="color:#3b82f6;font-weight:600;">Command</span>
+          </a>
+          <!-- Botão RTA — Real Time Alert (URL dinâmica: mesmo host, porta 3021) -->
+          <a class="header-action-btn" id="btn-rta-link" href="#" target="_blank" title="RTA — Real Time Alert"
+             style="display:inline-flex;align-items:center;gap:6px;text-decoration:none;color:inherit;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            <span class="btn-label" style="color:#ef4444;font-weight:600;">RTA</span>
+          </a>
+          <!-- Botão RDA — Relatórios de Desempenho Automáticos (URL dinâmica: mesmo host, porta 5050) -->
+          <a class="header-action-btn" id="btn-rda-link" href="#" target="_blank" title="RDA — Relatórios de Desempenho"
+             style="display:inline-flex;align-items:center;gap:6px;text-decoration:none;color:inherit;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="16" y1="13" x2="8" y2="13"/>
+              <line x1="16" y1="17" x2="8" y2="17"/>
+              <polyline points="10 9 9 9 8 9"/>
+            </svg>
+            <span class="btn-label" style="color:#F0AB00;font-weight:600;">RDA</span>
+          </a>
+          <!-- Botão RCA — Relatório de Coletas e Análises (URL dinâmica: mesmo host, porta 3031) -->
+          <a class="header-action-btn" id="btn-rca-link" href="#" target="_blank" title="RCA — Relatório de Coletas e Análises"
+             style="display:inline-flex;align-items:center;gap:6px;text-decoration:none;color:inherit;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <path d="M12 18v-6"/><path d="M9 15l3 3 3-3"/>
+            </svg>
+            <span class="btn-label" style="color:#F0AB00;font-weight:600;">RCA</span>
+          </a>
+          <!-- Botão FI — Fleet Intelligence (URL dinâmica: mesmo host, porta 8087) -->
+          <a class="header-action-btn" id="btn-fi-link" href="#" target="_blank" title="FI — Fleet Intelligence"
+             style="display:inline-flex;align-items:center;gap:6px;text-decoration:none;color:inherit;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+              <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+            </svg>
+            <span class="btn-label" style="color:#60A5FA;font-weight:600;">FI</span>
+          </a>
+          <script>
+            // Gera URLs dinâmicas baseado no host atual (funciona na rede)
+            var _cmd = document.getElementById('btn-command-link');
+            if (_cmd) _cmd.href =
+              window.location.protocol + '//' + window.location.hostname + ':4001';
+            document.getElementById('btn-rta-link').href =
+              window.location.protocol + '//' + window.location.hostname + ':3021';
+            document.getElementById('btn-rda-link').href =
+              window.location.protocol + '//' + window.location.hostname + ':5050';
+            document.getElementById('btn-rca-link').href =
+              window.location.protocol + '//' + window.location.hostname + ':3031';
+            document.getElementById('btn-fi-link').href =
+              window.location.protocol + '//' + window.location.hostname + ':8087';
+          </script>
+
+          <!-- Botão Análises -->
+          <button class="btn-show-charts header-action-btn" onclick="showCharts()" title="Análises">
+            <svg class="chart-icon" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+              version="1.1" width="22" height="22" viewBox="0 0 256 256" xml:space="preserve">
+              <defs></defs>
+              <g style="stroke:none;stroke-width:0;fill:none;fill-rule:nonzero;opacity:1"
+                transform="translate(1.4065934065934016 1.4065934065934016) scale(2.81 2.81)">
+                <path id="arrow-up"
+                  d="M 87.994 0 H 69.342 c -1.787 0 -2.682 2.16 -1.418 3.424 l 5.795 5.795 l -33.82 33.82 L 28.056 31.196 l -3.174 -3.174 c -1.074 -1.074 -2.815 -1.074 -3.889 0 L 0.805 48.209 c -1.074 1.074 -1.074 2.815 0 3.889 l 3.174 3.174 c 1.074 1.074 2.815 1.074 3.889 0 l 15.069 -15.069 l 14.994 14.994 c 1.074 1.074 2.815 1.074 3.889 0 l 1.614 -1.614 c 0.083 -0.066 0.17 -0.125 0.247 -0.202 l 37.1 -37.1 l 5.795 5.795 C 87.84 23.34 90 22.445 90 20.658 V 2.006 C 90 0.898 89.102 0 87.994 0 z"
+                  style="fill:rgb(160,180,220);fill-rule:nonzero;opacity:1" transform="matrix(1 0 0 1 0 0)" stroke-linecap="round" />
+                <path id="bar1"
+                  d="M 65.626 37.8 v 49.45 c 0 1.519 1.231 2.75 2.75 2.75 h 8.782 c 1.519 0 2.75 -1.231 2.75 -2.75 V 23.518 L 65.626 37.8 z"
+                  style="fill:rgb(120,210,190);fill-rule:nonzero;opacity:1" transform="matrix(1 0 0 1 0 0)" stroke-linecap="round" />
+                <path id="bar2"
+                  d="M 47.115 56.312 V 87.25 c 0 1.519 1.231 2.75 2.75 2.75 h 8.782 c 1.519 0 2.75 -1.231 2.75 -2.75 V 42.03 L 47.115 56.312 z"
+                  style="fill:rgb(135,185,83);fill-rule:nonzero;opacity:1" transform="matrix(1 0 0 1 0 0)" stroke-linecap="round" />
+                <path id="bar3"
+                  d="M 39.876 60.503 c -1.937 0 -3.757 -0.754 -5.127 -2.124 l -6.146 -6.145 V 87.25 c 0 1.519 1.231 2.75 2.75 2.75 h 8.782 c 1.519 0 2.75 -1.231 2.75 -2.75 V 59.844 C 41.952 60.271 40.933 60.503 39.876 60.503 z"
+                  style="fill:rgb(246,170,64);fill-rule:nonzero;opacity:1" transform="matrix(1 0 0 1 0 0)" stroke-linecap="round" />
+                <path id="bar4"
+                  d="M 22.937 46.567 L 11.051 58.453 c -0.298 0.298 -0.621 0.562 -0.959 0.8 V 87.25 c 0 1.519 1.231 2.75 2.75 2.75 h 8.782 c 1.519 0 2.75 -1.231 2.75 -2.75 V 48.004 L 22.937 46.567 z"
+                  style="fill:rgb(210,85,90);fill-rule:nonzero;opacity:1" transform="matrix(1 0 0 1 0 0)" stroke-linecap="round" />
+              </g>
+            </svg>
+            <span class="btn-label">Análises</span>
+          </button>
+
+          <!-- Botão Filtros -->
+          <button class="header-action-btn header-action-btn--outline" onclick="showFilterField()" title="Filtros">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" id="animated-svg" fill="none"
+              stroke="currentColor" stroke-width="1.5" width="22" height="22">
+              <path d="M22.5,5H1.5C1.224,5,1,5.224,1,5.5v1C1,6.776,1.224,7,1.5,7h21c0.276,0,0.5-0.224,0.5-0.5v-1C23,5.224,22.776,5,22.5,5z"/>
+              <path d="M22.5,11h-21C1.224,11,1,11.224,1,11.5v1c0,0.276,0.224,0.5,0.5,0.5h21c0.276,0,0.5-0.224,0.5-0.5v-1C23,11.224,22.776,11,22.5,11z"/>
+              <path d="M22.5,17h-21C1.224,17,1,17.224,1,17.5v1c0,0.276,0.224,0.5,0.5,0.5h21c0.276,0,0.5-0.224,0.5-0.5v-1C23,17.224,22.776,17,22.5,17z"/>
+              <circle cx="6" cy="6" r="2.7" id="circle1" fill="currentColor"/>
+              <circle cx="18" cy="12" r="2.7" id="circle2" fill="currentColor"/>
+              <circle cx="10" cy="18" r="2.7" id="circle3" fill="currentColor"/>
+            </svg>
+            <span class="btn-label">Filtros</span>
+          </button>
+
+          <!-- Botão Configurações -->
+          <button class="settings-button header-action-btn" onclick="showSettingsField()" title="Configurações">
+            <svg fill="currentColor" version="1.1" xmlns="http://www.w3.org/2000/svg"
+              xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 569.16 569.16"
+              xml:space="preserve" width="22" height="22">
+              <g>
+                <g>
+                  <path d="M513.217,216.366c-18.427,0-31.318-4.568-34.492-12.218c-3.17-7.647,2.702-19.982,15.704-32.999l33.109-33.109 l6.493-6.493l-6.493-6.49l-83.474-83.44l-6.49-6.49l-6.49,6.49l-33.079,33.082c-14.422,14.419-24.076,16.573-28.547,16.573 c-3.295,0-5.915-1.083-8.24-3.415c-3.151-3.161-8.434-11.5-8.391-31.864c0-0.386-0.021-0.768-0.067-1.147V9.18V0h-9.18H225.599 h-9.18v9.18v46.931c-0.024,8.229-1.3,35.166-16.741,35.166c-4.464,0-14.104-2.154-28.519-16.576l-33.103-33.085l-6.49-6.487 l-6.49,6.49l-83.44,83.44l-6.487,6.487l6.484,6.49l33.082,33.112c13.018,13.011,18.896,25.343,15.729,32.996 c-3.17,7.65-16.046,12.222-34.446,12.222H9.18H0v9.18V343.58v9.18h9.18h46.815c18.396,0,31.273,4.568,34.443,12.219 c3.173,7.656-2.705,20.004-15.722,33.025l-33.079,33.08l-6.49,6.49l6.49,6.492l83.44,83.475l6.493,6.496l6.494-6.496 l33.097-33.113c14.407-14.4,24.049-16.551,28.51-16.551c15.45,0,16.726,26.918,16.75,35.168v46.936v9.18h9.18h117.984h9.18v-9.18 v-45.662c0.046-0.377,0.067-0.752,0.067-1.135c-0.042-20.373,5.239-28.713,8.391-31.871c2.329-2.334,4.951-3.42,8.25-3.42 c4.471,0,14.125,2.148,28.544,16.539l33.069,33.104l6.49,6.498l6.493-6.496l83.474-83.471l6.493-6.492l-6.496-6.494 l-33.112-33.082c-12.999-13.023-18.871-25.373-15.698-33.023c3.174-7.648,16.065-12.215,34.489-12.215h46.761h9.18v-9.18V225.546 v-9.18h-9.18H513.217z M413.1,284.58c0,70.867-57.653,128.52-128.52,128.52c-70.867,0-128.52-57.652-128.52-128.52 c0-70.867,57.653-128.52,128.52-128.52C355.446,156.06,413.1,213.713,413.1,284.58z"/>
+                </g>
+              </g>
+            </svg>
+            <span class="btn-label">Config.</span>
+          </button>
+
+          <!-- Botão Sair -->
+          <a href="/logout" class="header-action-btn" title="Sair do sistema" style="text-decoration:none;color:inherit;" onclick="return confirm('Deseja sair do RTS?')">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="20" height="20">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+              <polyline points="16 17 21 12 16 7"/>
+              <line x1="21" y1="12" x2="9" y2="12"/>
+            </svg>
+            <span class="btn-label">Sair</span>
+          </a>
+        </div>
+      </header>
+
+      <!-- ═══════════════════════════════════════════
+           MODAL ANÁLISES (Charts)
+      ════════════════════════════════════════════ -->
+      <div class="modal-analysis">
+        <div class="statistic-container">
+
+          <!-- Cabeçalho do modal -->
+          <div class="modal-analysis-header">
+            <div class="modal-analysis-title">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:#F0AB00">
+                <path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/>
+              </svg>
+              <span>Análises Gerenciais</span>
+            </div>
+            <div class="JD-WTG-chart-filter">
+              <div class="JD filter-selected">
+                <button class="filter-btn jd" onclick="selectChartsFilter('JD')">
+                  <span class="fleet-text">JOHN DEERE</span>
+                </button>
+              </div>
+              <div class="WTG">
+                <button class="filter-btn wtg" onclick="selectChartsFilter('WTG')">
+                  <span class="fleet-text">WIRTGEN</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Área de gráficos -->
+          <div class="charts-container">
+            <!-- Linha superior: barra de modelos + linha de tempo -->
+            <div class="above-container">
+              <div class="chart-gauge">
+                <div id="gaugeChart"></div>
+              </div>
+            </div>
+            <!-- Linha inferior: linha temporal + gauge atendimento -->
+            <div class="below-container">
+              <div class="chart-line">
+                <div id="lineChart"></div>
+              </div>
+              <div class="chart-assisting-time">
+                <div id="assistChart"></div>
+                <!-- Tabela TMA por usuário (preenchida via API em charts.js) -->
+                <div id="tma-by-user-table" style="margin-top:10px;max-height:140px;overflow-y:auto;"></div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+        <div class="up-modal-analysis">
+          <button onclick="showCharts()" title="Fechar análises">
+            <svg viewBox="0 0 24 24" width="44" height="44">
+              <path fill="rgba(255,255,255,0.7)" d="M12 15.3L16.3 11l1.4 1.4L12 18.1 6.3 12.4l1.4-1.4L12 15.3z" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════
+           SIDEBAR FILTROS
+      ════════════════════════════════════════════ -->
+      <div class="right-sidebar-filters">
+        <div class="filter-title">
+          <div class="title-name-filter">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px">
+              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+            </svg>
+            <h2>Filtros</h2>
+          </div>
+        </div>
+        <div class="filter-field">
+          <div class="search-container">
+            <h3>Pesquisa por cliente</h3>
+            <form action="search">
+              <input type="search" name="search-customer" id="glasses"
+                onkeyup="searchCustomer()" placeholder="Ex: Veneza Equipamentos" />
+              <svg role="img" xmlns="http://www.w3.org/2000/svg" width="10" height="10"
+                viewBox="0 0 40 40" class="ais-SearchBox-submitIcon">
+                <path d="M26.804 29.01c-2.832 2.34-6.465 3.746-10.426 3.746C7.333 32.756 0 25.424 0 16.378 0 7.333 7.333 0 16.378 0c9.046 0 16.378 7.333 16.378 16.378 0 3.96-1.406 7.594-3.746 10.426l10.534 10.534c.607.607.61 1.59-.004 2.202-.61.61-1.597.61-2.202.004L26.804 29.01zm-10.426.627c7.323 0 13.26-5.936 13.26-13.26 0-7.32-5.937-13.257-13.26-13.257C9.056 3.12 3.12 9.056 3.12 16.378c0 7.323 5.936 13.26 13.258 13.26z" fillRule="evenodd"></path>
+              </svg>
+            </form>
+          </div>
+          <!-- Filtro de Frota removido daqui: já existe o seletor no header
+               (elemento #fleet-select), evitando duplicação e divergência de estado. -->
+
+          <div class="inp-filter">
+            <h3>🔍 Pesquisa por chassi</h3>
+            <input type="search" name="search-chassi" id="f-chassi"
+              onkeyup="searchChassi()" placeholder="Ex: 1DW310LXT..." />
+          </div>
+
+          <div class="inp-filter">
+            <h3>📅 Filtrar por data</h3>
+            <label>Início</label>
+            <input type="date" name="start-date" id="f-start" />
+            <label>Até</label>
+            <input type="date" name="end-date" id="f-end" />
+            <script>
+              var td = new Date();
+              document.getElementById("f-end").value = `${td.getFullYear()}-${(td.getMonth() + 1).toLocaleString("en-us", { minimumIntegerDigits: 2 })}-${td.getDate().toLocaleString("en-us", { minimumIntegerDigits: 2 })}`;
+            </script>
+          </div>
+          <div class="btns-filters">
+            <div class="btn-filter">
+              <button onclick="filterNotifications()">Filtrar</button>
+            </div>
+            <div class="btn-clear-filter">
+              <button onclick="clearFilters()">Limpar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════
+           SIDEBAR CONFIGURAÇÕES
+      ════════════════════════════════════════════ -->
+      <div class="right-sidebar-settings">
+        <div class="filter-title">
+          <div class="title-name-filter">
+            <svg width="16" height="16" viewBox="0 0 569.16 569.16" fill="currentColor" style="margin-right:8px">
+              <path d="M413.1,284.58c0,70.867-57.653,128.52-128.52,128.52c-70.867,0-128.52-57.652-128.52-128.52 c0-70.867,57.653-128.52,128.52-128.52C355.446,156.06,413.1,213.713,413.1,284.58z"/>
+            </svg>
+            <h2>Configurações</h2>
+          </div>
+        </div>
+        <div class="filter-field">
+          <div class="search-container">
+            <div style="display:flex;margin-top:8px;justify-content:center;flex-direction:column;">
+
+              <!-- ── Envio WhatsApp (toggle manual: AUTO / FORCE_ON / FORCE_OFF) ── -->
+              <div class="settings-divider" style="margin-top:24px;">
+                <span>Envio WhatsApp</span>
+              </div>
+              <div class="wpp-mode-block">
+                <div id="wpp-mode-status" class="wpp-mode-status">Carregando…</div>
+                <div class="wpp-mode-buttons">
+                  <button type="button" class="wpp-mode-btn" data-mode="AUTO" onclick="setWppMode('AUTO')">
+                    <span class="wpp-mode-emoji">🤖</span>
+                    <span class="wpp-mode-text">
+                      <span class="wpp-mode-label">Automático</span>
+                      <span class="wpp-mode-hint">Respeita 08h–17h50 Seg–Sex</span>
+                    </span>
+                  </button>
+                  <button type="button" class="wpp-mode-btn" data-mode="FORCE_ON" onclick="setWppMode('FORCE_ON')">
+                    <span class="wpp-mode-emoji">🟢</span>
+                    <span class="wpp-mode-text">
+                      <span class="wpp-mode-label">Sempre ligado</span>
+                      <span class="wpp-mode-hint">Ignora horário comercial</span>
+                    </span>
+                  </button>
+                  <button type="button" class="wpp-mode-btn" data-mode="FORCE_OFF" onclick="setWppMode('FORCE_OFF')">
+                    <span class="wpp-mode-emoji">🔴</span>
+                    <span class="wpp-mode-text">
+                      <span class="wpp-mode-label">Pausado</span>
+                      <span class="wpp-mode-hint">Bloqueia envio temporariamente</span>
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- ── Logs (alertas, envios WPP, sistema) ── -->
+              <div class="settings-divider" style="margin-top:24px;">
+                <span>Logs</span>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:8px;width:100%;margin-top:8px;">
+                <button onclick="openLogsModal()" id="btn-open-logs" style="
+                  width:100%;padding:9px 0;
+                  background:transparent;
+                  border:1px solid #3a3a3a;
+                  color:#f0f0f0;
+                  border-radius:6px;
+                  cursor:pointer;
+                  font-family:inherit;
+                  font-size:0.82rem;
+                  font-weight:600;
+                  letter-spacing:0.03em;
+                  transition:all 0.2s;
+                " onmouseover="this.style.background='#2c2c2c';this.style.borderColor='#F0AB00';"
+                   onmouseout="this.style.background='transparent';this.style.borderColor='#3a3a3a';">
+                  📋 Ver Logs
+                </button>
+              </div>
+
+              <!-- ── Gerenciamento de Clientes ── -->
+              <div class="settings-divider" style="margin-top:24px;">
+                <span>Gerenciar Clientes</span>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:8px;width:100%;margin-top:8px;">
+                <button onclick="openAddClienteModal()" style="
+                  width:100%;padding:9px 0;
+                  background:transparent;
+                  border:1px solid #3a3a3a;
+                  color:#f0f0f0;
+                  border-radius:6px;
+                  cursor:pointer;
+                  font-family:inherit;
+                  font-size:0.82rem;
+                  font-weight:600;
+                  letter-spacing:0.03em;
+                  transition:all 0.2s;
+                " onmouseover="this.style.background='#2c2c2c';this.style.borderColor='#F0AB00';"
+                   onmouseout="this.style.background='transparent';this.style.borderColor='#3a3a3a';">
+                  + Adicionar Cliente
+                </button>
+                <button onclick="openEditClienteModal()" style="
+                  width:100%;padding:9px 0;
+                  background:transparent;
+                  border:1px solid #3a3a3a;
+                  color:#f0f0f0;
+                  border-radius:6px;
+                  cursor:pointer;
+                  font-family:inherit;
+                  font-size:0.82rem;
+                  font-weight:600;
+                  letter-spacing:0.03em;
+                  transition:all 0.2s;
+                " onmouseover="this.style.background='#2c2c2c';this.style.borderColor='#78d4c9';"
+                   onmouseout="this.style.background='transparent';this.style.borderColor='#3a3a3a';">
+                  ✎ Editar Cliente
+                </button>
+              </div>
+
+              <!-- ── Relatório CSV ── -->
+              <div class="settings-divider" style="margin-top:24px;">
+                <span>Relatórios</span>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:8px;width:100%;margin-top:8px;">
+                <button onclick="openCsvReportModal()" id="btn-open-csv-report" style="
+                  width:100%;padding:9px 0;
+                  background:transparent;
+                  border:1px solid #3a3a3a;
+                  color:#f0f0f0;
+                  border-radius:6px;
+                  cursor:pointer;
+                  font-family:inherit;
+                  font-size:0.82rem;
+                  font-weight:600;
+                  letter-spacing:0.03em;
+                  transition:all 0.2s;
+                " onmouseover="this.style.background='#2c2c2c';this.style.borderColor='#F0AB00';"
+                   onmouseout="this.style.background='transparent';this.style.borderColor='#3a3a3a';">
+                  📥 Gerar Relatório CSV
+                </button>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════
+           MODAL — RELATÓRIO CSV
+      ════════════════════════════════════════════ -->
+      <div id="csv-report-modal" style="
+        display:none;position:fixed;inset:0;z-index:9000;
+        background:rgba(0,0,0,0.65);backdrop-filter:blur(4px);
+        align-items:center;justify-content:center;
+      ">
+        <div style="
+          background:#1a1a1a;border:1px solid #333;border-radius:10px;
+          padding:28px 28px 24px;width:360px;max-width:95vw;
+          box-shadow:0 8px 40px rgba(0,0,0,0.7);
+          font-family:inherit;color:#f0f0f0;
+        ">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+            <h3 style="margin:0;font-size:0.95rem;font-weight:700;color:#f0f0f0;">Relatório CSV</h3>
+            <button onclick="closeCsvReportModal()" style="
+              background:none;border:none;color:#888;cursor:pointer;font-size:1.2rem;line-height:1;
+            " title="Fechar">✕</button>
+          </div>
+
+          <!-- Período -->
+          <div style="margin-bottom:14px;">
+            <label style="display:block;font-size:0.78rem;color:#aaa;margin-bottom:5px;">Período</label>
+            <div style="display:flex;gap:8px;">
+              <input type="date" id="csv-start-date" style="
+                flex:1;min-width:0;padding:7px 8px;background:#111;border:1px solid #3a3a3a;
+                border-radius:6px;color:#f0f0f0;font-size:0.78rem;font-family:inherit;
+                box-sizing:border-box;
+              "/>
+              <input type="date" id="csv-end-date" style="
+                flex:1;min-width:0;padding:7px 8px;background:#111;border:1px solid #3a3a3a;
+                border-radius:6px;color:#f0f0f0;font-size:0.78rem;font-family:inherit;
+                box-sizing:border-box;
+              "/>
+            </div>
+          </div>
+
+          <!-- Seleção de operador CC (apenas admins) -->
+          <div id="csv-cc-user-selector" style="display:none;margin-bottom:14px;">
+            <label style="display:block;font-size:0.78rem;color:#aaa;margin-bottom:5px;">Operador Command Center</label>
+            <select id="csv-cc-user-select" style="
+              width:100%;padding:7px 10px;background:#111;border:1px solid #3a3a3a;
+              border-radius:6px;color:#f0f0f0;font-size:0.82rem;font-family:inherit;
+            ">
+              <option value="all">Todos os operadores</option>
+            </select>
+          </div>
+
+          <!-- Seleção de contato WPP (apenas admins) -->
+          <div id="csv-user-selector" style="display:none;margin-bottom:14px;">
+            <label style="display:block;font-size:0.78rem;color:#aaa;margin-bottom:5px;">Contato WhatsApp</label>
+            <select id="csv-usuario-select" style="
+              width:100%;padding:7px 10px;background:#111;border:1px solid #3a3a3a;
+              border-radius:6px;color:#f0f0f0;font-size:0.82rem;font-family:inherit;
+            ">
+              <option value="all">Todos os contatos</option>
+            </select>
+          </div>
+
+          <!-- Atalhos de período -->
+          <div style="display:flex;gap:6px;margin-bottom:18px;flex-wrap:wrap;">
+            <button onclick="setCsvPeriod('today')" style="
+              flex:1;min-width:70px;padding:5px 0;background:transparent;border:1px solid #333;
+              border-radius:4px;color:#aaa;cursor:pointer;font-size:0.75rem;font-family:inherit;
+            " onmouseover="this.style.borderColor='#F0AB00';this.style.color='#F0AB00';"
+               onmouseout="this.style.borderColor='#333';this.style.color='#aaa';">Hoje</button>
+            <button onclick="setCsvPeriod('week')" style="
+              flex:1;min-width:70px;padding:5px 0;background:transparent;border:1px solid #333;
+              border-radius:4px;color:#aaa;cursor:pointer;font-size:0.75rem;font-family:inherit;
+            " onmouseover="this.style.borderColor='#F0AB00';this.style.color='#F0AB00';"
+               onmouseout="this.style.borderColor='#333';this.style.color='#aaa';">Esta semana</button>
+            <button onclick="setCsvPeriod('month')" style="
+              flex:1;min-width:70px;padding:5px 0;background:transparent;border:1px solid #333;
+              border-radius:4px;color:#aaa;cursor:pointer;font-size:0.75rem;font-family:inherit;
+            " onmouseover="this.style.borderColor='#F0AB00';this.style.color='#F0AB00';"
+               onmouseout="this.style.borderColor='#333';this.style.color='#aaa';">Este mês</button>
+          </div>
+
+          <!-- Botão baixar -->
+          <button onclick="downloadCsvReport()" id="btn-download-csv" style="
+            width:100%;padding:10px 0;
+            background:linear-gradient(135deg,#c98800,#F0AB00);
+            border:none;border-radius:6px;
+            color:#111;font-weight:700;font-size:0.85rem;
+            font-family:inherit;cursor:pointer;letter-spacing:0.04em;
+            transition:opacity 0.2s;
+          " onmouseover="this.style.opacity='0.85';" onmouseout="this.style.opacity='1';">
+            ⬇ Baixar CSV
+          </button>
+          <div id="csv-report-error" style="
+            display:none;margin-top:10px;padding:8px 10px;
+            background:rgba(220,50,50,0.12);border:1px solid rgba(220,50,50,0.3);
+            border-radius:6px;font-size:0.78rem;color:#f08080;
+          "></div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════
+           LAYOUT PRINCIPAL — GRID DASHBOARD
+      ════════════════════════════════════════════ -->
+      <div class="main-content">
+      <div class="container-feed">
+
+        <!-- ── KPI Cards — linha superior completa ── -->
+        <div class="amounts-infos">
+
+          <div class="amount alert-sended kpi-card kpi-alerts">
+            <div class="kpi-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+              </svg>
+            </div>
+            <div class="kpi-content">
+              <div class="amount-title"><h3>Alertas Enviados</h3></div>
+              <div class="amount-number" onclick="alertFilter()">
+                <span id="number-alert-sended">0</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="amount requested-support kpi-card kpi-support">
+            <div class="kpi-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+              </svg>
+            </div>
+            <div class="kpi-content">
+              <div class="amount-title"><h3>Solicitações</h3></div>
+              <div class="amount-number" onclick="needsHelpFilter()">
+                <span id="number-requested-support">0</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="amount customers-assisted kpi-card kpi-assisted">
+            <div class="kpi-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                <polyline points="22 4 12 14.01 9 11.01"/>
+              </svg>
+            </div>
+            <div class="kpi-content">
+              <div class="amount-title"><h3>Atendidos</h3></div>
+              <div class="amount-number">
+                <span id="number-customers-assisted">0</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="amount customers-waiting kpi-card kpi-waiting">
+            <div class="kpi-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <polyline points="12 6 12 12 16 14"/>
+              </svg>
+            </div>
+            <div class="kpi-content">
+              <div class="amount-title"><h3>Aguardando</h3></div>
+              <div class="amount-number">
+                <span id="number-customers-waiting">0</span>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /amounts-infos -->
+
+        <!-- ── Área de duas colunas: feed + painel direito ── -->
+        <div class="region-feed">
+
+          <!-- Coluna esquerda: feed -->
+          <div class="feed">
+            <div class="feed-header">
+              <span class="feed-header-title">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px">
+                  <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                </svg>
+                Feed em tempo real
+              </span>
+              <span class="feed-header-badge" id="feed-total">0 eventos</span>
+            </div>
+            <div class="customer-needing-help"></div>
+            <div class="all-messages"></div>
+          </div>
+
+          <!-- Coluna direita: painel de estatísticas + info cliente -->
+          <div class="right-stats-panel">
+
+            <!-- Logo CSC -->
+            <div class="stats-csc-brand">
+              <img src="AdesivoMelhorCSC.png" alt="CSC" class="stats-csc-logo" />
+              <div class="stats-csc-text">
+                <span class="stats-csc-name">Centro de Soluções Conectadas</span>
+                <span class="stats-csc-sub">Veneza Equipamentos · Nordeste</span>
+              </div>
+            </div>
+
+            <!-- Tempo médio de proatividade -->
+            <div class="stat-block">
+              <div class="stat-block-header">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <span>Tempo Médio de Proatividade</span>
+              </div>
+              <div class="stat-block-value">
+                <span id="stat-proactivity-value">—</span>
+                <span class="stat-unit">min</span>
+              </div>
+              <div class="stat-bar-track">
+                <div class="stat-bar-fill" id="stat-proactivity-bar" style="width:0%"></div>
+              </div>
+              <div class="stat-bar-labels">
+                <span>0</span><span>15</span><span>30</span><span>45</span><span>60+</span>
+              </div>
+            </div>
+
+            <!-- Tempo médio de atendimento -->
+            <div class="stat-block">
+              <div class="stat-block-header">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/></svg>
+                <span>Tempo Médio de Atendimento</span>
+              </div>
+              <div class="stat-block-value">
+                <span id="stat-assist-value">—</span>
+                <span class="stat-unit">min</span>
+              </div>
+              <div class="stat-bar-track">
+                <div class="stat-bar-fill stat-bar-assist" id="stat-assist-bar" style="width:0%"></div>
+              </div>
+              <div class="stat-bar-labels">
+                <span>0</span><span>15</span><span>30</span><span>45</span><span>60+</span>
+              </div>
+            </div>
+
+            <!-- Breakdown JD vs WTG -->
+            <div class="stat-block">
+              <div class="stat-block-header">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/></svg>
+                <span>Alertas por Frota</span>
+              </div>
+              <div class="stat-fleet-row">
+                <span class="fleet-label">JOHN DEERE</span>
+                <div class="fleet-bar-wrap">
+                  <div class="fleet-bar fleet-bar-jd" id="fleet-bar-jd" style="width:0%"></div>
+                </div>
+                <span class="fleet-count" id="fleet-count-jd">0</span>
+              </div>
+              <div class="stat-fleet-row">
+                <span class="fleet-label">WIRTGEN</span>
+                <div class="fleet-bar-wrap">
+                  <div class="fleet-bar fleet-bar-wtg" id="fleet-bar-wtg" style="width:0%"></div>
+                </div>
+                <span class="fleet-count" id="fleet-count-wtg">0</span>
+              </div>
+            </div>
+
+            <!-- Painel de info do cliente (slide-in ao clicar num alerta) -->
+            <div class="infos-of-customers"></div>
+
+          </div><!-- /right-stats-panel -->
+
+        </div><!-- /region-feed -->
+
+      </div><!-- /container-feed -->
+      </div><!-- /main-content -->
+    </div><!-- /container -->
+
+    <!-- ═══════════════════════════════════════════
+         MODAL — ADICIONAR CLIENTE
+    ════════════════════════════════════════════ -->
+    <div class="floating-window" id="modal-add-cliente" onclick="handleModalBackdropClick(event,'modal-add-cliente')">
+      <div class="details-alert" style="width:480px;height:auto;max-height:90vh;overflow-y:auto;padding:24px;">
+        <div class="floating-window-X">
+          <button class="close-X" onclick="closeAddClienteModal()" style="background:none;border:none;cursor:pointer;opacity:0.6;transition:opacity 0.2s;">
+            <svg width="22" height="22" viewBox="0 0 25 24">
+              <line x1="18" y1="6" x2="6" y2="18" stroke="white" stroke-width="2"/>
+              <line x1="6" y1="6" x2="18" y2="18" stroke="white" stroke-width="2"/>
+            </svg>
+          </button>
+        </div>
+
+        <h2 style="color:#f0f0f0;font-size:1rem;margin-bottom:20px;text-align:center;letter-spacing:0.04em;">
+          Adicionar Cliente
+        </h2>
+
+        <div style="display:flex;flex-direction:column;gap:14px;width:100%;">
+
+          <div>
+            <label for="add-cliente-nome" style="display:block;font-size:0.72rem;font-weight:600;color:#787878;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">
+              Cliente *
+            </label>
+            <input type="text" id="add-cliente-nome" placeholder="Nome do cliente"
+              style="width:100%;padding:8px 10px;background:#1a1a1a;border:1px solid #404040;color:#f0f0f0;border-radius:4px;font-family:inherit;font-size:0.85rem;box-sizing:border-box;outline:none;"
+              onfocus="this.style.borderColor='#F0AB00'" onblur="this.style.borderColor='#404040'"/>
+          </div>
+
+          <div>
+            <label for="add-cliente-idorg" style="display:block;font-size:0.72rem;font-weight:600;color:#787878;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">
+              ID da Organização (Operations Center)
+            </label>
+            <input type="text" id="add-cliente-idorg" placeholder="ID da organização JDLink"
+              style="width:100%;padding:8px 10px;background:#1a1a1a;border:1px solid #404040;color:#f0f0f0;border-radius:4px;font-family:inherit;font-size:0.85rem;box-sizing:border-box;outline:none;"
+              onfocus="this.style.borderColor='#F0AB00'" onblur="this.style.borderColor='#404040'"/>
+          </div>
+
+          <div>
+            <label for="add-cliente-uf" style="display:block;font-size:0.72rem;font-weight:600;color:#787878;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">
+              Estado (sigla)
+            </label>
+            <input type="text" id="add-cliente-uf" placeholder="Ex: SP, MG, BA..." maxlength="2"
+              style="width:100%;padding:8px 10px;background:#1a1a1a;border:1px solid #404040;color:#f0f0f0;border-radius:4px;font-family:inherit;font-size:0.85rem;box-sizing:border-box;outline:none;text-transform:uppercase;"
+              onfocus="this.style.borderColor='#F0AB00'" onblur="this.style.borderColor='#404040'"
+              oninput="this.value=this.value.toUpperCase()"/>
+          </div>
+
+          <div>
+            <label for="add-cliente-responsavel" style="display:block;font-size:0.72rem;font-weight:600;color:#787878;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">
+              Responsável
+            </label>
+            <input type="text" id="add-cliente-responsavel" placeholder="Nome do responsável"
+              style="width:100%;padding:8px 10px;background:#1a1a1a;border:1px solid #404040;color:#f0f0f0;border-radius:4px;font-family:inherit;font-size:0.85rem;box-sizing:border-box;outline:none;"
+              onfocus="this.style.borderColor='#F0AB00'" onblur="this.style.borderColor='#404040'"/>
+          </div>
+
+          <div>
+            <label for="add-cliente-telefone" style="display:block;font-size:0.72rem;font-weight:600;color:#787878;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">
+              Telefone
+            </label>
+            <input type="text" id="add-cliente-telefone" placeholder="Ex: 5511999998888"
+              style="width:100%;padding:8px 10px;background:#1a1a1a;border:1px solid #404040;color:#f0f0f0;border-radius:4px;font-family:inherit;font-size:0.85rem;box-sizing:border-box;outline:none;"
+              onfocus="this.style.borderColor='#F0AB00'" onblur="this.style.borderColor='#404040'"/>
+          </div>
+
+          <div>
+            <label for="add-cliente-email" style="display:block;font-size:0.72rem;font-weight:600;color:#787878;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">
+              Email
+            </label>
+            <input type="email" id="add-cliente-email" placeholder="email@exemplo.com"
+              style="width:100%;padding:8px 10px;background:#1a1a1a;border:1px solid #404040;color:#f0f0f0;border-radius:4px;font-family:inherit;font-size:0.85rem;box-sizing:border-box;outline:none;"
+              onfocus="this.style.borderColor='#F0AB00'" onblur="this.style.borderColor='#404040'"/>
+          </div>
+
+          <div>
+            <label for="add-cliente-cen" style="display:block;font-size:0.72rem;font-weight:600;color:#787878;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">
+              CEN
+            </label>
+            <input type="text" id="add-cliente-cen" placeholder="Código CEN"
+              style="width:100%;padding:8px 10px;background:#1a1a1a;border:1px solid #404040;color:#f0f0f0;border-radius:4px;font-family:inherit;font-size:0.85rem;box-sizing:border-box;outline:none;"
+              onfocus="this.style.borderColor='#F0AB00'" onblur="this.style.borderColor='#404040'"/>
+          </div>
+
+          <!-- Mensagem de feedback -->
+          <div id="add-cliente-msg" style="display:none;padding:8px 12px;border-radius:4px;font-size:0.82rem;text-align:center;font-weight:600;"></div>
+
+          <div style="display:flex;gap:10px;margin-top:6px;">
+            <button onclick="closeAddClienteModal()" style="flex:1;padding:10px;background:#2c2c2c;color:#f0f0f0;border:1px solid #505050;border-radius:4px;cursor:pointer;font-weight:600;font-family:inherit;font-size:0.85rem;">
+              Cancelar
+            </button>
+            <button onclick="submitAddCliente()" id="btn-submit-add-cliente" style="flex:1;padding:10px;background:#F0AB00;color:#111;border:none;border-radius:4px;cursor:pointer;font-weight:700;font-family:inherit;font-size:0.85rem;">
+              Adicionar
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════
+         MODAL — EDITAR CLIENTE
+    ════════════════════════════════════════════ -->
+    <div class="floating-window" id="modal-edit-cliente" onclick="handleModalBackdropClick(event,'modal-edit-cliente')">
+      <div class="details-alert" style="width:520px;height:auto;max-height:92vh;overflow-y:auto;padding:24px;">
+        <div class="floating-window-X">
+          <button class="close-X" onclick="closeEditClienteModal()" style="background:none;border:none;cursor:pointer;opacity:0.6;transition:opacity 0.2s;">
+            <svg width="22" height="22" viewBox="0 0 25 24">
+              <line x1="18" y1="6" x2="6" y2="18" stroke="white" stroke-width="2"/>
+              <line x1="6" y1="6" x2="18" y2="18" stroke="white" stroke-width="2"/>
+            </svg>
+          </button>
+        </div>
+
+        <h2 style="color:#f0f0f0;font-size:1rem;margin-bottom:20px;text-align:center;letter-spacing:0.04em;">
+          Edição de Cliente
+        </h2>
+
+        <!-- ── Pesquisar por ── -->
+        <div style="border:1px solid #2c2c2c;border-radius:6px;padding:16px;margin-bottom:16px;">
+          <p style="font-size:0.72rem;font-weight:700;color:#787878;text-transform:uppercase;letter-spacing:0.06em;margin:0 0 12px 0;">
+            Pesquisar por
+          </p>
+
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <div>
+              <label style="display:block;font-size:0.72rem;font-weight:600;color:#787878;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Nome do cliente</label>
+              <input type="text" id="edit-search-nome" placeholder="Buscar por nome..."
+                style="width:100%;padding:7px 10px;background:#1a1a1a;border:1px solid #404040;color:#f0f0f0;border-radius:4px;font-family:inherit;font-size:0.85rem;box-sizing:border-box;outline:none;"
+                onfocus="this.style.borderColor='#F0AB00'" onblur="this.style.borderColor='#404040'"
+                onkeydown="if(event.key==='Enter') searchClienteEdit()"/>
+            </div>
+            <div>
+              <label style="display:block;font-size:0.72rem;font-weight:600;color:#787878;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">ID da Organização</label>
+              <input type="text" id="edit-search-idorg" placeholder="Buscar por ID da org..."
+                style="width:100%;padding:7px 10px;background:#1a1a1a;border:1px solid #404040;color:#f0f0f0;border-radius:4px;font-family:inherit;font-size:0.85rem;box-sizing:border-box;outline:none;"
+                onfocus="this.style.borderColor='#F0AB00'" onblur="this.style.borderColor='#404040'"
+                onkeydown="if(event.key==='Enter') searchClienteEdit()"/>
+            </div>
+            <div>
+              <label style="display:block;font-size:0.72rem;font-weight:600;color:#787878;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Telefone</label>
+              <input type="text" id="edit-search-telefone" placeholder="Buscar por telefone..."
+                style="width:100%;padding:7px 10px;background:#1a1a1a;border:1px solid #404040;color:#f0f0f0;border-radius:4px;font-family:inherit;font-size:0.85rem;box-sizing:border-box;outline:none;"
+                onfocus="this.style.borderColor='#F0AB00'" onblur="this.style.borderColor='#404040'"
+                onkeydown="if(event.key==='Enter') searchClienteEdit()"/>
+            </div>
+            <button onclick="searchClienteEdit()" id="btn-search-cliente" style="
+              width:100%;padding:9px 0;margin-top:4px;
+              background:#2a6a40;color:#f0f0f0;border:none;
+              border-radius:4px;cursor:pointer;font-weight:700;
+              font-family:inherit;font-size:0.85rem;letter-spacing:0.03em;
+              transition:background 0.2s;
+            " onmouseover="this.style.background='#3a8a55'" onmouseout="this.style.background='#2a6a40'">
+              🔍 Pesquisar
+            </button>
+          </div>
+        </div>
+
+        <!-- ── Resultado (oculto até pesquisa) ── -->
+        <div id="edit-resultado-section" style="display:none;border:1px solid #2c2c2c;border-radius:6px;padding:16px;">
+          <p style="font-size:0.72rem;font-weight:700;color:#787878;text-transform:uppercase;letter-spacing:0.06em;margin:0 0 12px 0;">
+            Resultado
+          </p>
+
+          <!-- Select quando há múltiplos resultados -->
+          <div id="edit-select-section" style="display:none;margin-bottom:12px;">
+            <label style="display:block;font-size:0.72rem;font-weight:600;color:#787878;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">
+              Selecione o cliente
+            </label>
+            <select id="edit-select-cliente" onchange="preencherFormEdicao(this.value)"
+              style="width:100%;padding:8px 10px;background:#1a1a1a;border:1px solid #404040;color:#f0f0f0;border-radius:4px;font-family:inherit;font-size:0.85rem;box-sizing:border-box;outline:none;cursor:pointer;">
+              <option value="">— Selecione —</option>
+            </select>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:10px;">
+
+            <div style="display:flex;gap:10px;">
+              <div style="flex:2;">
+                <label style="display:block;font-size:0.72rem;font-weight:600;color:#787878;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Cliente *</label>
+                <input type="text" id="edit-cliente-nome"
+                  style="width:100%;padding:7px 10px;background:#1a1a1a;border:1px solid #404040;color:#f0f0f0;border-radius:4px;font-family:inherit;font-size:0.85rem;box-sizing:border-box;outline:none;"
+                  onfocus="this.style.borderColor='#F0AB00'" onblur="this.style.borderColor='#404040'"/>
+              </div>
+              <div style="flex:1;">
+                <label style="display:block;font-size:0.72rem;font-weight:600;color:#787878;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">ID da Org.</label>
+                <input type="text" id="edit-cliente-idorg"
+                  style="width:100%;padding:7px 10px;background:#1a1a1a;border:1px solid #404040;color:#f0f0f0;border-radius:4px;font-family:inherit;font-size:0.85rem;box-sizing:border-box;outline:none;"
+                  onfocus="this.style.borderColor='#F0AB00'" onblur="this.style.borderColor='#404040'"/>
+              </div>
+              <div style="flex:0.6;">
+                <label style="display:block;font-size:0.72rem;font-weight:600;color:#787878;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">CEN</label>
+                <input type="text" id="edit-cliente-cen"
+                  style="width:100%;padding:7px 10px;background:#1a1a1a;border:1px solid #404040;color:#f0f0f0;border-radius:4px;font-family:inherit;font-size:0.85rem;box-sizing:border-box;outline:none;"
+                  onfocus="this.style.borderColor='#F0AB00'" onblur="this.style.borderColor='#404040'"/>
+              </div>
+            </div>
+
+            <div style="display:flex;gap:10px;">
+              <div style="flex:1;">
+                <label style="display:block;font-size:0.72rem;font-weight:600;color:#787878;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Estado</label>
+                <input type="text" id="edit-cliente-uf" maxlength="2"
+                  style="width:100%;padding:7px 10px;background:#1a1a1a;border:1px solid #404040;color:#f0f0f0;border-radius:4px;font-family:inherit;font-size:0.85rem;box-sizing:border-box;outline:none;text-transform:uppercase;"
+                  onfocus="this.style.borderColor='#F0AB00'" onblur="this.style.borderColor='#404040'"
+                  oninput="this.value=this.value.toUpperCase()"/>
+              </div>
+              <div style="flex:2;">
+                <label style="display:block;font-size:0.72rem;font-weight:600;color:#787878;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Telefone</label>
+                <input type="text" id="edit-cliente-telefone"
+                  style="width:100%;padding:7px 10px;background:#1a1a1a;border:1px solid #404040;color:#f0f0f0;border-radius:4px;font-family:inherit;font-size:0.85rem;box-sizing:border-box;outline:none;"
+                  onfocus="this.style.borderColor='#F0AB00'" onblur="this.style.borderColor='#404040'"/>
+              </div>
+              <div style="flex:2;">
+                <label style="display:block;font-size:0.72rem;font-weight:600;color:#787878;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Responsável</label>
+                <input type="text" id="edit-cliente-responsavel"
+                  style="width:100%;padding:7px 10px;background:#1a1a1a;border:1px solid #404040;color:#f0f0f0;border-radius:4px;font-family:inherit;font-size:0.85rem;box-sizing:border-box;outline:none;"
+                  onfocus="this.style.borderColor='#F0AB00'" onblur="this.style.borderColor='#404040'"/>
+              </div>
+            </div>
+
+            <div>
+              <label style="display:block;font-size:0.72rem;font-weight:600;color:#787878;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Email</label>
+              <input type="email" id="edit-cliente-email"
+                style="width:100%;padding:7px 10px;background:#1a1a1a;border:1px solid #404040;color:#f0f0f0;border-radius:4px;font-family:inherit;font-size:0.85rem;box-sizing:border-box;outline:none;"
+                onfocus="this.style.borderColor='#F0AB00'" onblur="this.style.borderColor='#404040'"/>
+            </div>
+
+          </div>
+
+          <!-- Mensagem de feedback -->
+          <div id="edit-cliente-msg" style="display:none;padding:8px 12px;margin-top:10px;border-radius:4px;font-size:0.82rem;text-align:center;font-weight:600;"></div>
+
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;">
+            <span id="edit-cliente-id-label" style="font-size:0.75rem;color:#555;font-style:italic;">
+              Identificador: —
+            </span>
+            <button onclick="submitEditCliente()" id="btn-submit-edit-cliente" style="
+              padding:10px 24px;
+              background:#1565c0;color:#f0f0f0;border:none;
+              border-radius:4px;cursor:pointer;font-weight:700;
+              font-family:inherit;font-size:0.85rem;
+              transition:background 0.2s;
+            " onmouseover="this.style.background='#1976d2'" onmouseout="this.style.background='#1565c0'">
+              ✎ Editar
+            </button>
+          </div>
+        </div>
+
+        <!-- Mensagem quando não há resultados -->
+        <div id="edit-no-results" style="display:none;padding:12px;text-align:center;color:#787878;font-size:0.85rem;">
+          Nenhum cliente encontrado para os filtros informados.
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="script.js"></script>
+    <script src="src/filtering.js"></script>
+    <script src="src/charts.js"></script>
+    <!-- brand-filter.js removido: a função isChassiJD que ele redefinia
+         estava sobrescrevendo a versão correta de filtering.js/script.js,
+         fazendo com que todos os chassis fossem contados como Wirtgen.
+         O filtro de frota (filtering.js) já cobre a funcionalidade. -->
+
+    <!-- ═══════════════════════════════════════════
+         SCRIPT: GERENCIAMENTO DE CLIENTES
+    ════════════════════════════════════════════ -->
+    <script>
+      // ── Estado interno de edição ──────────────────────────────────────────
+      let _editClienteId = null;        // ID do cliente carregado no form de edição
+      let _searchResultados = [];       // Lista de resultados da última busca
+
+      // ── Utilitários de feedback ───────────────────────────────────────────
+      function _showMsg(elId, msg, tipo) {
+        const el = document.getElementById(elId);
+        if (!el) return;
+        el.style.display = 'block';
+        el.textContent = msg;
+        el.style.background = tipo === 'ok' ? '#1b5e20' : '#b71c1c';
+        el.style.color = '#f0f0f0';
+      }
+
+      function _hideMsg(elId) {
+        const el = document.getElementById(elId);
+        if (el) el.style.display = 'none';
+      }
+
+      // Fecha modal ao clicar no backdrop (área escura fora do card)
+      function handleModalBackdropClick(event, modalId) {
+        if (event.target.id === modalId) {
+          if (modalId === 'modal-add-cliente') closeAddClienteModal();
+          else if (modalId === 'modal-edit-cliente') closeEditClienteModal();
+        }
+      }
+
+      // ── Modal Adicionar Cliente ───────────────────────────────────────────
+      function openAddClienteModal() {
+        // Limpa o formulário
+        ['add-cliente-nome','add-cliente-idorg','add-cliente-uf',
+         'add-cliente-responsavel','add-cliente-telefone',
+         'add-cliente-email','add-cliente-cen'].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.value = '';
+        });
+        _hideMsg('add-cliente-msg');
+        document.getElementById('modal-add-cliente').classList.add('show-floating-window');
+      }
+
+      function closeAddClienteModal() {
+        document.getElementById('modal-add-cliente').classList.remove('show-floating-window');
+      }
+
+      async function submitAddCliente() {
+        const nome = document.getElementById('add-cliente-nome').value.trim();
+        if (!nome) {
+          _showMsg('add-cliente-msg', 'O nome do cliente é obrigatório.', 'err');
+          return;
+        }
+
+        const btn = document.getElementById('btn-submit-add-cliente');
+        btn.disabled = true;
+        btn.textContent = 'Salvando...';
+        _hideMsg('add-cliente-msg');
+
+        const payload = {
+          cliente:    nome,
+          idOrg:      document.getElementById('add-cliente-idorg').value.trim(),
+          uf:         document.getElementById('add-cliente-uf').value.trim(),
+          responsavel:document.getElementById('add-cliente-responsavel').value.trim(),
+          telefone:   document.getElementById('add-cliente-telefone').value.trim(),
+          email:      document.getElementById('add-cliente-email').value.trim(),
+          cen:        document.getElementById('add-cliente-cen').value.trim(),
+        };
+
+        try {
+          const resp = await fetch('/api/clientes/adicionar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          const json = await resp.json();
+
+          if (json.success) {
+            _showMsg('add-cliente-msg', '✔ Cliente adicionado com sucesso!', 'ok');
+            // Limpa o form após sucesso
+            setTimeout(() => {
+              closeAddClienteModal();
+            }, 1400);
+          } else if (resp.status === 409 || json.code === 'DUPLICATE_CLIENTE') {
+            // Nome de cliente já cadastrado — mensagem específica para não confundir com erro genérico.
+            _showMsg('add-cliente-msg',
+              '⚠ ' + (json.error || 'Já existe um cliente com este nome.') +
+              ' Use outro nome ou edite o cliente existente.',
+              'err');
+          } else {
+            _showMsg('add-cliente-msg', 'Erro: ' + (json.error || 'falha ao adicionar.'), 'err');
+          }
+        } catch (e) {
+          _showMsg('add-cliente-msg', 'Erro de conexão com o servidor.', 'err');
+        } finally {
+          btn.disabled = false;
+          btn.textContent = 'Adicionar';
+        }
+      }
+
+      // ── Modal Editar Cliente ──────────────────────────────────────────────
+      function openEditClienteModal() {
+        // Reseta o modal
+        ['edit-search-nome','edit-search-idorg','edit-search-telefone'].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.value = '';
+        });
+        document.getElementById('edit-resultado-section').style.display = 'none';
+        document.getElementById('edit-no-results').style.display = 'none';
+        document.getElementById('edit-select-section').style.display = 'none';
+        _hideMsg('edit-cliente-msg');
+        _editClienteId = null;
+        _searchResultados = [];
+        document.getElementById('modal-edit-cliente').classList.add('show-floating-window');
+      }
+
+      function closeEditClienteModal() {
+        document.getElementById('modal-edit-cliente').classList.remove('show-floating-window');
+      }
+
+      async function searchClienteEdit() {
+        const nome     = document.getElementById('edit-search-nome').value.trim();
+        const idOrg    = document.getElementById('edit-search-idorg').value.trim();
+        const telefone = document.getElementById('edit-search-telefone').value.trim();
+
+        if (!nome && !idOrg && !telefone) {
+          alert('Preencha ao menos um campo de pesquisa.');
+          return;
+        }
+
+        const btn = document.getElementById('btn-search-cliente');
+        btn.disabled = true;
+        btn.textContent = 'Pesquisando...';
+
+        document.getElementById('edit-resultado-section').style.display = 'none';
+        document.getElementById('edit-no-results').style.display = 'none';
+
+        try {
+          const params = new URLSearchParams({ nome, idOrg, telefone });
+          const resp = await fetch('/api/clientes/buscar?' + params.toString());
+          const json = await resp.json();
+
+          if (!json.success) {
+            alert('Erro ao buscar: ' + (json.error || 'falha desconhecida.'));
+            return;
+          }
+
+          _searchResultados = json.data;
+
+          if (_searchResultados.length === 0) {
+            document.getElementById('edit-no-results').style.display = 'block';
+          } else if (_searchResultados.length === 1) {
+            // Único resultado: preenche diretamente
+            document.getElementById('edit-select-section').style.display = 'none';
+            preencherFormEdicaoComObj(_searchResultados[0]);
+            document.getElementById('edit-resultado-section').style.display = 'block';
+          } else {
+            // Múltiplos resultados: mostra select
+            const sel = document.getElementById('edit-select-cliente');
+            sel.innerHTML = '<option value="">— Selecione —</option>';
+            _searchResultados.forEach((c, i) => {
+              sel.innerHTML += `<option value="${i}">${c.Cliente} — ${c.JDLink_ID || 'sem ID'} (${c.UF || '?'})</option>`;
+            });
+            document.getElementById('edit-select-section').style.display = 'block';
+            // Limpa os campos até o usuário selecionar
+            ['edit-cliente-nome','edit-cliente-idorg','edit-cliente-cen',
+             'edit-cliente-uf','edit-cliente-telefone','edit-cliente-responsavel',
+             'edit-cliente-email'].forEach(id => {
+              const el = document.getElementById(id);
+              if (el) el.value = '';
+            });
+            document.getElementById('edit-cliente-id-label').textContent = 'Identificador: —';
+            _editClienteId = null;
+            document.getElementById('edit-resultado-section').style.display = 'block';
+          }
+        } catch (e) {
+          alert('Erro de conexão com o servidor.');
+        } finally {
+          btn.disabled = false;
+          btn.textContent = '🔍 Pesquisar';
+        }
+      }
+
+      function preencherFormEdicao(index) {
+        if (index === '' || index === null) return;
+        const c = _searchResultados[parseInt(index)];
+        if (!c) return;
+        preencherFormEdicaoComObj(c);
+      }
+
+      function preencherFormEdicaoComObj(c) {
+        _editClienteId = c.Identificador;
+        document.getElementById('edit-cliente-nome').value        = c.Cliente       || '';
+        document.getElementById('edit-cliente-idorg').value       = c.JDLink_ID     || '';
+        document.getElementById('edit-cliente-uf').value          = c.UF            || '';
+        document.getElementById('edit-cliente-responsavel').value = c['Responsável'] || '';
+        document.getElementById('edit-cliente-telefone').value    = c.Telefone      || '';
+        document.getElementById('edit-cliente-email').value       = c.Email         || '';
+        document.getElementById('edit-cliente-cen').value         = c.CEN           || '';
+        document.getElementById('edit-cliente-id-label').textContent =
+          'Identificador: ' + (c.Identificador ?? '—');
+        _hideMsg('edit-cliente-msg');
+      }
+
+      async function submitEditCliente() {
+        if (!_editClienteId) {
+          _showMsg('edit-cliente-msg', 'Nenhum cliente selecionado para editar.', 'err');
+          return;
+        }
+
+        const nome = document.getElementById('edit-cliente-nome').value.trim();
+        if (!nome) {
+          _showMsg('edit-cliente-msg', 'O nome do cliente é obrigatório.', 'err');
+          return;
+        }
+
+        const btn = document.getElementById('btn-submit-edit-cliente');
+        btn.disabled = true;
+        btn.textContent = 'Salvando...';
+        _hideMsg('edit-cliente-msg');
+
+        const payload = {
+          cliente:    nome,
+          idOrg:      document.getElementById('edit-cliente-idorg').value.trim(),
+          uf:         document.getElementById('edit-cliente-uf').value.trim(),
+          responsavel:document.getElementById('edit-cliente-responsavel').value.trim(),
+          telefone:   document.getElementById('edit-cliente-telefone').value.trim(),
+          email:      document.getElementById('edit-cliente-email').value.trim(),
+          cen:        document.getElementById('edit-cliente-cen').value.trim(),
+        };
+
+        try {
+          const resp = await fetch(`/api/clientes/editar/${_editClienteId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          const json = await resp.json();
+
+          if (json.success) {
+            _showMsg('edit-cliente-msg', '✔ Cliente atualizado com sucesso!', 'ok');
+          } else if (resp.status === 409 || json.code === 'DUPLICATE_CLIENTE') {
+            // Nome colidindo com outro cliente existente.
+            _showMsg('edit-cliente-msg',
+              '⚠ ' + (json.error || 'Já existe outro cliente com este nome.') +
+              ' Escolha outro nome.',
+              'err');
+          } else {
+            _showMsg('edit-cliente-msg', 'Erro: ' + (json.error || 'falha ao atualizar.'), 'err');
+          }
+        } catch (e) {
+          _showMsg('edit-cliente-msg', 'Erro de conexão com o servidor.', 'err');
+        } finally {
+          btn.disabled = false;
+          btn.textContent = '✎ Editar';
+        }
+      }
+
+      // ── Modal Relatório CSV ───────────────────────────────────────────────────
+
+      (function() {
+        var _csvIsAdmin = false;
+
+        function _today() {
+          return new Date().toISOString().slice(0, 10);
+        }
+
+        function _firstDayOfMonth() {
+          var d = new Date();
+          return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2,'0') + '-01';
+        }
+
+        function _mondayOfWeek() {
+          var d = new Date();
+          var day = d.getDay() || 7;
+          d.setDate(d.getDate() - day + 1);
+          return d.toISOString().slice(0, 10);
+        }
+
+        window.setCsvPeriod = function(period) {
+          var startEl = document.getElementById('csv-start-date');
+          var endEl   = document.getElementById('csv-end-date');
+          if (!startEl || !endEl) return;
+          var today = _today();
+          if (period === 'today')  { startEl.value = today;              endEl.value = today; }
+          if (period === 'week')   { startEl.value = _mondayOfWeek();    endEl.value = today; }
+          if (period === 'month')  { startEl.value = _firstDayOfMonth(); endEl.value = today; }
+        };
+
+        window.openCsvReportModal = async function() {
+          var modal = document.getElementById('csv-report-modal');
+          if (!modal) return;
+
+          // Preenche datas padrão (mês atual)
+          var startEl = document.getElementById('csv-start-date');
+          var endEl   = document.getElementById('csv-end-date');
+          if (startEl && !startEl.value) startEl.value = _firstDayOfMonth();
+          if (endEl   && !endEl.value)   endEl.value   = _today();
+
+          var errEl = document.getElementById('csv-report-error');
+          if (errEl) errEl.style.display = 'none';
+
+          modal.style.display = 'flex';
+
+          // Verifica se é admin e carrega lista de usuários + operadores CC
+          try {
+            var resp = await fetch('/api/metrics/usuarios');
+            if (resp.ok) {
+              var json = await resp.json();
+              _csvIsAdmin = true;
+
+              // Dropdown de operadores CC
+              var ccSelectorDiv = document.getElementById('csv-cc-user-selector');
+              if (ccSelectorDiv) ccSelectorDiv.style.display = 'block';
+              var ccSelect = document.getElementById('csv-cc-user-select');
+              if (ccSelect) {
+                ccSelect.innerHTML = '<option value="all">Todos os operadores</option>';
+                (json.ccUsers || []).forEach(function(u) {
+                  var opt = document.createElement('option');
+                  opt.value = u;
+                  opt.textContent = u;
+                  ccSelect.appendChild(opt);
+                });
+              }
+
+              // Dropdown de contatos WPP
+              var selectorDiv = document.getElementById('csv-user-selector');
+              if (selectorDiv) selectorDiv.style.display = 'block';
+              var select = document.getElementById('csv-usuario-select');
+              if (select) {
+                select.innerHTML = '<option value="all">Todos os contatos</option>';
+                (json.usuarios || []).forEach(function(u) {
+                  var opt = document.createElement('option');
+                  opt.value = u;
+                  opt.textContent = u;
+                  select.appendChild(opt);
+                });
+              }
+            } else {
+              _csvIsAdmin = false;
+              var ccSelectorDiv = document.getElementById('csv-cc-user-selector');
+              if (ccSelectorDiv) ccSelectorDiv.style.display = 'none';
+              var selectorDiv = document.getElementById('csv-user-selector');
+              if (selectorDiv) selectorDiv.style.display = 'none';
+            }
+          } catch(_) {
+            _csvIsAdmin = false;
+          }
+        };
+
+        window.closeCsvReportModal = function() {
+          var modal = document.getElementById('csv-report-modal');
+          if (modal) modal.style.display = 'none';
+        };
+
+        // Fecha ao clicar no backdrop
+        document.addEventListener('click', function(ev) {
+          var modal = document.getElementById('csv-report-modal');
+          if (modal && ev.target === modal) window.closeCsvReportModal();
+        });
+
+        window.downloadCsvReport = async function() {
+          var startDate = (document.getElementById('csv-start-date') || {}).value || _firstDayOfMonth();
+          var endDate   = (document.getElementById('csv-end-date')   || {}).value || _today();
+          var usuario   = 'all';
+          var ccUser    = 'all';
+          if (_csvIsAdmin) {
+            var sel = document.getElementById('csv-usuario-select');
+            if (sel) usuario = sel.value;
+            var ccSel = document.getElementById('csv-cc-user-select');
+            if (ccSel) ccUser = ccSel.value;
+          }
+
+          var errEl = document.getElementById('csv-report-error');
+          var btn   = document.getElementById('btn-download-csv');
+          if (errEl) errEl.style.display = 'none';
+          if (btn) { btn.disabled = true; btn.textContent = '⏳ Gerando…'; }
+
+          try {
+            var params = new URLSearchParams({ startDate: startDate, endDate: endDate, usuario: usuario, ccUser: ccUser });
+            var resp = await fetch('/api/reports/csv?' + params.toString());
+            if (!resp.ok) {
+              var json = await resp.json().catch(function(){ return {}; });
+              throw new Error(json.error || 'Erro ' + resp.status);
+            }
+            var blob = await resp.blob();
+            var cd = resp.headers.get('Content-Disposition') || '';
+            var match = cd.match(/filename="?([^";\r\n]+)"?/);
+            var filename = match ? match[1] : 'relatorio_rts.csv';
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            window.closeCsvReportModal();
+          } catch(err) {
+            if (errEl) {
+              errEl.textContent = 'Erro ao gerar relatório: ' + (err.message || err);
+              errEl.style.display = 'block';
+            }
+          } finally {
+            if (btn) { btn.disabled = false; btn.textContent = '⬇ Baixar CSV'; }
+          }
+        };
+      })();
+    </script>
+
+    <script>
+      // Relógio em tempo real no header
+      function updateClock() {
+        const now = new Date();
+        const h = now.getHours().toString().padStart(2,'0');
+        const m = now.getMinutes().toString().padStart(2,'0');
+        const s = now.getSeconds().toString().padStart(2,'0');
+        document.getElementById('live-clock').textContent = `${h}:${m}:${s}`;
+      }
+      updateClock();
+      setInterval(updateClock, 1000);
+
+      // Contador de eventos no feed
+      function updateFeedCounter() {
+        const total = document.querySelectorAll('.message').length;
+        const el = document.getElementById('feed-total');
+        if (el) el.textContent = `${total} evento${total !== 1 ? 's' : ''}`;
+        updateFleetStats();
+      }
+
+      // Atualiza breakdown JD vs WTG no painel direito
+      function updateFleetStats() {
+        const pins = document.querySelectorAll('.pin');
+        let jd = 0, wtg = 0;
+        pins.forEach(p => {
+          if (typeof isChassiJD === 'function' && isChassiJD(p.innerHTML)) jd++;
+          else wtg++;
+        });
+        const total = jd + wtg || 1;
+        const jdPct = Math.round((jd / total) * 100);
+        const wtgPct = Math.round((wtg / total) * 100);
+        const jdBar = document.getElementById('fleet-bar-jd');
+        const wtgBar = document.getElementById('fleet-bar-wtg');
+        const jdCount = document.getElementById('fleet-count-jd');
+        const wtgCount = document.getElementById('fleet-count-wtg');
+        if (jdBar) jdBar.style.width = jdPct + '%';
+        if (wtgBar) wtgBar.style.width = wtgPct + '%';
+        if (jdCount) jdCount.textContent = jd;
+        if (wtgCount) wtgCount.textContent = wtg;
+      }
+
+      // Atualiza tempo médio no painel direito (chamado após charts calcularem)
+      function updateStatsPanelTimes(proactMin, assistMin) {
+        const clamp = (v, max) => Math.min(isNaN(v) ? 0 : Math.max(0, v), max);
+        const p = clamp(proactMin, 60);
+        const a = clamp(assistMin, 60);
+        const pEl = document.getElementById('stat-proactivity-value');
+        const aEl = document.getElementById('stat-assist-value');
+        const pBar = document.getElementById('stat-proactivity-bar');
+        const aBar = document.getElementById('stat-assist-bar');
+        if (pEl) pEl.textContent = isNaN(proactMin) ? '—' : p;
+        if (aEl) aEl.textContent = isNaN(assistMin) ? '—' : a;
+        if (pBar) pBar.style.width = (p / 60 * 100) + '%';
+        if (aBar) aBar.style.width = (a / 60 * 100) + '%';
+        // cor semântica da barra de proatividade
+        if (pBar) {
+          pBar.className = 'stat-bar-fill ' +
+            (p <= 15 ? 'bar-green' : p <= 30 ? 'bar-yellow' : p <= 45 ? 'bar-orange' : 'bar-red');
+        }
+        if (aBar) {
+          aBar.className = 'stat-bar-fill stat-bar-assist ' +
+            (a <= 15 ? 'bar-green' : a <= 30 ? 'bar-yellow' : a <= 45 ? 'bar-orange' : 'bar-red');
+        }
+      }
+
+      // Efeito sonoro repetitivo para chamados em aberto
+      setInterval(() => {
+        const msgsReq = document.getElementsByClassName("pulsing");
+        if (msgsReq.length == 1) {
+          newCustomerRequestVoice(`Novo chamado da empresa ${msgsReq[0].querySelector(".company-name").innerHTML}`);
+        } else if (msgsReq.length > 1) {
+          newCustomerRequestVoice("Novos chamados em aberto.");
+        }
+      }, 120000);
+
+      function newCustomerRequestVoice(text) {
+        let utterance = new SpeechSynthesisUtterance();
+        utterance.text = text;
+        utterance.voice = window.speechSynthesis.getVoices()[0];
+        window.speechSynthesis.speak(utterance);
+      }
+
+      // ── Identifica o usuário logado do Command Center ──────────────────────
+      window._ccUser = { displayName: null, email: null };
+      fetch("/api/me").then(r => r.ok ? r.json() : {}).then(u => {
+        window._ccUser = { displayName: u.displayName || null, email: u.email || null };
+      }).catch(() => {});
+
+      const socket = io();
+      const msgDiv = document.querySelector(".all-messages");
+      let allAlerts = [];
+
+      socket.on("newEvent", (data) => {
+        let alertEvent = data.database || [];
+        allAlerts = data.database || [];
+
+        // Coleta IDs já renderizados no feed para evitar duplicação.
+        // Busca .identif-number em TODO o DOM (inclui mensagens hidden por
+        // filtro de frota) para nunca duplicar um alerta já presente.
+        let allIdNumbers = document.querySelectorAll(".identif-number");
+        let idNumbersArray = [];
+        allIdNumbers.forEach((d) => idNumbersArray.push(parseInt(d.textContent)));
+
+        for (let i = 0; i < alertEvent.length; i++) {
+          if (idNumbersArray.includes(alertEvent[i].ID)) continue;
+          alertSended(alertEvent[i]);
+        }
+
+        // Aplicar filtro de Fleet
+        if (typeof applyFleetFilterToFeed === 'function') {
+          applyFleetFilterToFeed();
+        }
+
+        updateFeedCounter();
+      });
+
+      let timesToAnalysisJD = [];
+      let timesToAnalysisWTG = [];
+
+      socket.on("msgWaitingAssist", (data) => {
+        var messages = data.database;
+        messages.forEach((message) => {
+          if (document.getElementById(message.Id_mensagem) != null) return;
+          if (message.Foi_atendido == 0) {
+            askingHelp(message, allAlerts);
+          } else {
+            askingHelp(message, allAlerts, true);
+            if (message.Chassi && message.Chassi.length == "1BZ310PACPDX00399".length) {
+              // Terceiro elemento (Data_recebimento) permite averageTimeAssist
+              // filtrar por dia útil (Seg-Sex). Backward compatible: se ausente,
+              // o consumidor pula o filtro de dia da semana.
+              if (isChassiJD(message.Chassi)) {
+                timesToAnalysisJD.push([
+                  message.Hora_atendimento,
+                  message.Hora_Recebimento,
+                  message.Data_recebimento,
+                ]);
+              } else {
+                timesToAnalysisWTG.push([
+                  message.Hora_atendimento,
+                  message.Hora_Recebimento,
+                  message.Data_recebimento,
+                ]);
+              }
+            }
+          }
+        });
+        var counterAssisted = document.querySelector("#number-customers-assisted");
+        counterAssisted.innerHTML = document.querySelectorAll(".customer-assisted").length;
+
+        // Atualizar gráficos de tempo médio em tempo real
+        if (typeof calculateAverageTime === 'function') {
+          const proactMin = calculateAverageTime();
+          // Prioriza valor da API (mais preciso); fallback para DOM; último recurso: 0
+          const assistMin =
+            (typeof showAssistTimeChart !== 'undefined' && typeof showAssistTimeChart._apiValue === 'number')
+              ? showAssistTimeChart._apiValue
+              : (typeof averageTimeAssist === 'function' ? averageTimeAssist() : 0);
+          updateStatsPanelTimes(proactMin, assistMin);
+        }
+
+        // Re-busca TMA da API para manter valor atualizado após novos atendimentos
+        if (typeof fetchTmaFromAPI === 'function') {
+          fetchTmaFromAPI();
+        }
+
+        // Aplicar filtro de Fleet
+        if (typeof applyFleetFilterToFeed === 'function') {
+          applyFleetFilterToFeed();
+        }
+
+        updateFeedCounter();
+      });
+
+      socket.on("newMsgRTDB", (data) => {
+        askingHelp(data.rtdb, allAlerts);
+        let newMsgElem = document.getElementById(data.rtdb.last_id_msg);
+        if (newMsgElem) {
+          newMsgElem.parentNode.parentNode.classList.add("pulsing");
+          let audio = new Audio("audios/Novo_chamado.mp3");
+          audio.play();
+        }
+
+        // Aplicar filtro de Fleet para nova mensagem
+        if (typeof applyFleetFilterToFeed === 'function') {
+          applyFleetFilterToFeed();
+        }
+
+        // Recalcular métricas para o filtro de frota
+        if (typeof recalculateStatsForFleetFilter === 'function') {
+          recalculateStatsForFleetFilter();
+        }
+
+        updateFeedCounter();
+      });
+
+      socket.on("sendNoteOfService", (data) => {
+        noteOfService = data;
+      });
+
+      // ── Chat in-app: recebe mensagens em tempo real ──
+      socket.on("chatMessage", function (msg) {
+        if (typeof _chatState === "undefined" || msg.telefone !== _chatState.telefone) return;
+
+        // Sempre adiciona a bolha (mesmo minimizado — fica no DOM para quando reabrir)
+        if (typeof _appendChatBubble === "function") _appendChatBubble(msg);
+
+        // Se inbound, renova janela 24h
+        if (msg.direcao === "in" && typeof _updateChatWindowStatus === "function") {
+          _chatState.windowOpen = true;
+          _chatState.windowExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+          _updateChatWindowStatus();
+        }
+
+        // Se minimizado, incrementa badge de não lidas
+        if (_chatState._minimized && msg.direcao === "in") {
+          _chatState._unread = (_chatState._unread || 0) + 1;
+          if (typeof _updateChatFabBadge === "function") _updateChatFabBadge();
+        }
+      });
+    </script>
+
+    <!-- ═══════════════════════════════════════════
+         SCRIPT: FILTROS DE FROTA NO HEADER (BOTÕES)
+    ════════════════════════════════════════════ -->
+    <script>
+      /**
+       * Atualizar visual dos botões de frota no header
+       * Sincroniza com o estado atual dos filtros
+       */
+      function updateHeaderFleetUI() {
+        console.log('[FILTER] Atualizando visual dos botões de frota');
+
+        // Aguardar um pouco para a função toggleFleetFilter processar
+        setTimeout(function() {
+          const jdLink = document.querySelector('.jd-filter-link');
+          const wtgLink = document.querySelector('.wtg-filter-link');
+
+          // Se existem os links no header
+          if (jdLink && wtgLink) {
+            // ou um atributo data-selected
+
+            // Remover classes active primeiro
+            jdLink.classList.remove('active');
+            wtgLink.classList.remove('active');
+
+            // Verificar estado dos filtros no sidebar (se existir)
+            const jdSidebarLink = document.querySelector('.jd-filter-link.filter-selected');
+            const wtgSidebarLink = document.querySelector('.wtg-filter-link.filter-selected');
+
+            if (jdSidebarLink) {
+              jdLink.classList.add('active');
+              console.log('[FILTER] JD marcado como ativo');
+            }
+            if (wtgSidebarLink) {
+              wtgLink.classList.add('active');
+              console.log('[FILTER] WTG marcado como ativo');
+            }
+          }
+
+          // Aplicar filtros ao feed de alertas
+          if (typeof applyFleetFilterToFeed === 'function') {
+            applyFleetFilterToFeed();
+            console.log('[FILTER] Filtro aplicado ao feed de alertas');
+          }
+
+          // Recalcular estatísticas
+          if (typeof recalculateStatsForFleetFilter === 'function') {
+            recalculateStatsForFleetFilter();
+            console.log('[FILTER] Estatísticas recalculadas');
+          }
+
+          // Atualizar contador
+          if (typeof updateFeedCounter === 'function') {
+            updateFeedCounter();
+            console.log('[FILTER] Contador atualizado');
+          }
+        }, 100);
+      }
+
+      /**
+       * Inicializar componentes de filtro quando DOM está pronto
+       */
+      document.addEventListener('DOMContentLoaded', function() {
+        console.log('[FILTER] Sistema de filtros no header inicializado');
+        updateHeaderFleetUI();
+      });
+    </script>
+
+    <!-- ── MODAL: Logs do Sistema ── -->
+    <div id="logs-modal" class="logs-modal-overlay" style="display:none;" onclick="closeLogsModalIfBackdrop(event)">
+      <div class="logs-modal-card" onclick="event.stopPropagation()">
+        <div class="logs-modal-header">
+          <h2>Logs do Sistema</h2>
+          <div class="logs-modal-actions">
+            <button id="logs-refresh-btn" class="logs-btn logs-btn-secondary" onclick="refreshActiveLogTab()" title="Recarregar">↻ Atualizar</button>
+            <button class="logs-btn logs-btn-close" onclick="closeLogsModal()" title="Fechar">✕</button>
+          </div>
+        </div>
+
+        <div class="logs-modal-tabs">
+          <button class="logs-tab logs-tab-active" data-tab="alertas" onclick="switchLogTab('alertas')">📨 Alertas</button>
+          <button class="logs-tab" data-tab="envios" onclick="switchLogTab('envios')">📤 Envios WPP</button>
+          <button class="logs-tab" data-tab="sistema" onclick="switchLogTab('sistema')">⚠️ Sistema</button>
+        </div>
+
+        <div class="logs-modal-toolbar" id="logs-toolbar-alertas">
+          <label>Filtro:</label>
+          <select id="logs-filter-alertas" onchange="loadLogsAlertas()">
+            <option value="all">Todos</option>
+            <option value="enviados">Enviados</option>
+            <option value="pendentes">Pendentes / Falhas</option>
+          </select>
+          <label>Limite:</label>
+          <select id="logs-limit-alertas" onchange="loadLogsAlertas()">
+            <option value="20">20</option>
+            <option value="50" selected>50</option>
+            <option value="100">100</option>
+            <option value="200">200</option>
+          </select>
+          <span class="logs-status" id="logs-status-alertas"></span>
+        </div>
+
+        <div class="logs-modal-toolbar" id="logs-toolbar-envios" style="display:none;">
+          <label>Limite:</label>
+          <select id="logs-limit-envios" onchange="loadLogsEnvios()">
+            <option value="20">20</option>
+            <option value="50" selected>50</option>
+            <option value="100">100</option>
+          </select>
+          <span class="logs-status" id="logs-status-envios"></span>
+        </div>
+
+        <div class="logs-modal-toolbar" id="logs-toolbar-sistema" style="display:none;">
+          <label>Nivel:</label>
+          <select id="logs-level-sistema" onchange="loadLogsSistema()">
+            <option value="ALL" selected>Todos</option>
+            <option value="INFO">INFO</option>
+            <option value="WARNING">WARNING</option>
+            <option value="ERROR">ERROR</option>
+          </select>
+          <label>Linhas:</label>
+          <select id="logs-lines-sistema" onchange="loadLogsSistema()">
+            <option value="100">100</option>
+            <option value="200" selected>200</option>
+            <option value="500">500</option>
+            <option value="1000">1000</option>
+          </select>
+          <span class="logs-status" id="logs-status-sistema"></span>
+        </div>
+
+        <div class="logs-modal-body">
+          <div id="logs-pane-alertas" class="logs-pane">
+            <div class="logs-loading">Carregando…</div>
+          </div>
+          <div id="logs-pane-envios" class="logs-pane" style="display:none;">
+            <div class="logs-loading">Carregando…</div>
+          </div>
+          <div id="logs-pane-sistema" class="logs-pane" style="display:none;">
+            <div class="logs-loading">Carregando…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Chat Panel — Atendimento in-app via WhatsApp ── -->
+    <aside id="chat-panel" class="chat-panel">
+      <div class="chat-panel-header">
+        <div class="chat-panel-title">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+          <div>
+            <div id="chat-client-name" class="chat-header-name">Cliente</div>
+            <div id="chat-client-phone" class="chat-header-phone"></div>
+          </div>
+        </div>
+        <button class="chat-panel-close" onclick="closeChatPanel()" title="Fechar chat">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <div id="chat-window-status" class="chat-window-status"></div>
+
+      <div id="chat-messages" class="chat-messages"></div>
+
+      <div class="chat-input-area">
+        <input type="text" id="chat-input" class="chat-input"
+               placeholder="Digite sua mensagem..."
+               autocomplete="off"
+               onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();sendChatMessage();}" />
+        <button id="chat-send-btn" class="chat-send-btn" onclick="sendChatMessage()" title="Enviar">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"/>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+          </svg>
+        </button>
+      </div>
+    </aside>
+
+  </body>
+</html>

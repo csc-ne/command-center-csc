@@ -1,0 +1,24 @@
+{
+  "name": "portal-backend",
+  "version": "1.0.0",
+  "description": "Command Center CSC - Backend API (Auth + MFA Email)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "cookie-parser": "^1.4.6",
+    "dotenv": "^16.3.1",
+    "pg": "^8.13.0",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "helmet": "^7.1.0",
+    "express-rate-limit": "^7.1.4",
+    "uuid": "^9.0.0",
+    "nodemailer": "^6.9.8",
+    "@azure/msal-node": "^2.16.0"
+  }
+}

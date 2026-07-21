@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 260" width="200" height="260">
+  <defs>
+    <linearGradient id="p1" x1="0.3" y1="0" x2="0.7" y2="1">
+      <stop offset="0%" stop-color="#FFD633"/>
+      <stop offset="100%" stop-color="#E09500"/>
+    </linearGradient>
+    <filter id="ds" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#000" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+  <!-- Pin shape -->
+  <path d="M100 245 Q100 245 55 155 Q25 100 25 80 A75 75 0 1 1 175 80 Q175 100 145 155 Q100 245 100 245 Z" fill="url(#p1)" filter="url(#ds)"/>
+  <!-- Dark inner circle -->
+  <circle cx="100" cy="80" r="44" fill="#1a1a1a"/>
+  <!-- Gray ring -->
+  <circle cx="100" cy="80" r="44" fill="none" stroke="#666" stroke-width="4" opacity="0.5"/>
+  <!-- Checkmark -->
+  <polyline points="78,83 92,97 124,63" fill="none" stroke="white" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

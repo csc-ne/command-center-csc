@@ -1,0 +1,50 @@
+# =========== RTA - REAL TIME ALERT ============
+# Dockerfile.rta — container unico (backend Express + frontend estatico)
+# ================================================
+#
+# Build context: pasta rta/ (um nivel acima de docker/).
+#
+# O servidor Express serve tanto a API (/api/*) quanto o frontend
+# estatico (../frontend/). Container unico = simples de operar.
+
+FROM node:18-alpine AS base
+
+LABEL org.opencontainers.image.title="rta-dashboard"
+LABEL org.opencontainers.image.description="RTA Real Time Alert — dashboard de alertas em tempo real"
+
+ENV NODE_ENV=production \
+    TZ=America/Recife \
+    NPM_CONFIG_LOGLEVEL=warn
+
+WORKDIR /app
+
+# -------- Timezone --------
+RUN apk add --no-cache tzdata curl \
+    && cp /usr/share/zoneinfo/$TZ /etc/localtime \
+    && echo "$TZ" > /etc/timezone
+
+# -------- Dependencias Node --------
+COPY backend/package.json backend/package-lock.json* /app/backend/
+RUN cd /app/backend && \
+    if [ -f package-lock.json ]; then \
+        npm ci --omit=dev; \
+    else \
+        npm install --omit=dev; \
+    fi
+
+# -------- Codigo da aplicacao --------
+COPY backend/server.js  /app/backend/server.js
+COPY backend/db.js      /app/backend/db.js
+COPY backend/queries.js /app/backend/queries.js
+COPY frontend/          /app/frontend/
+
+# -------- Usuario nao-root --------
+RUN chown -R node:node /app
+USER node
+
+EXPOSE 3021
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -fsS http://127.0.0.1:3021/healthz || exit 1
+
+CMD ["node", "backend/server.js"]

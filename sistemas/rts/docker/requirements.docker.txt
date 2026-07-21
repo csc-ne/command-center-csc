@@ -1,0 +1,36 @@
+# =========== RTS - REAL TIME SUPPORT ============
+# requirements.docker.txt
+# ================================================
+#
+# Subconjunto de requirements.txt — apenas o que o rts-core (headless) usa.
+#
+# REMOVIDO propositalmente (comparado ao requirements.txt da raiz):
+#   - PySide6              → GUI roda no host, não no container
+#   - Flask / Flask-*      → servidor OAuth do JD roda no host (Selenium)
+#   - python-socketio      → idem, só o dashboard Node usa Socket.IO
+#   - python-engineio      → idem
+#   - BeautifulSoup4       → era usado pelo fluxo Selenium/OAuth
+#   - lxml                 → idem
+#   - python-dotenv-vault  → não usado (só python-dotenv é importado)
+#
+# Mantido:
+#   - requests              → Graph API do WhatsApp e JD
+#   - python-dotenv         → rts_core.py carrega .env
+#   - PyMySQL               → usado pelo BD_alertas.py
+#   - mysql-connector-python→ usado em alguns fluxos
+#   - cryptography          → dependência transitiva (PyMySQL TLS, JWT, etc.)
+#   - tenacity              → retry em integrações externas
+#   - BeautifulSoup4        → usado por alerts_api.py (parse do HTML dos
+#                              alertas do JDLink)
+#   - lxml                  → parser rápido usado pelo BeautifulSoup
+#
+# Versões pinadas iguais às do requirements.txt da raiz — mesma imagem de
+# dependências que já foi validada em produção.
+
+requests==2.31.0
+python-dotenv==1.0.0
+psycopg2-binary==2.9.9
+cryptography==41.0.4
+tenacity==8.2.3
+beautifulsoup4==4.12.2
+lxml==4.9.3

@@ -1,0 +1,1764 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RDA — Relatórios de Desempenho Automáticos</title>
+    <link rel="icon" type="image/jpg" href="/favicon.jpg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- TV MODE: ?tv=1 na URL ativa zoom para TV 50" Full HD -->
+    <script>
+      (function(){
+        var p = new URLSearchParams(window.location.search);
+        var z = p.get('tv');
+        if (z === '1' || z === 'true') {
+          document.documentElement.style.zoom = '1.4';
+        } else if (z) {
+          var n = parseFloat(z);
+          if (n > 0 && n < 5) document.documentElement.style.zoom = String(n);
+        }
+      })();
+    </script>
+    <style>
+        /* ========================================
+           DESIGN TOKENS — PALETA RTS/RTA (TEMA ESCURO)
+           ======================================== */
+        :root {
+            --bg-base: #0a0a0a;
+            --bg-elevated: #111111;
+            --bg-surface: #161616;
+            --bg-card: #1a1a1a;
+            --bg-card-hover: #222222;
+            --bg-input: #141414;
+
+            --border-subtle: #262626;
+            --border-medium: #333333;
+            --border-focus: #F0AB00;
+
+            --jd-gold: #F0AB00;
+            --jd-gold-dim: #c48d00;
+            --jd-gold-glow: rgba(240,171,0,0.12);
+            --jd-gold-hover: #d49600;
+
+            --alert-red: #ef4444;
+            --accent-green: #22c55e;
+            --accent-green-bg: rgba(34,197,94,0.1);
+
+            --text-primary: #f5f5f5;
+            --text-secondary: #a3a3a3;
+            --text-muted: #525252;
+            --text-inverse: #0a0a0a;
+
+            --font: 'Inter', system-ui, -apple-system, sans-serif;
+
+            --radius-xs: 4px;
+            --radius-sm: 6px;
+            --radius-md: 10px;
+            --radius-lg: 14px;
+            --radius-xl: 20px;
+
+            --shadow-sm: 0 1px 2px rgba(0,0,0,.5);
+            --shadow-md: 0 4px 16px rgba(0,0,0,.6);
+            --shadow-lg: 0 8px 32px rgba(0,0,0,.8);
+            --shadow-glow-jd: 0 0 20px rgba(240,171,0,0.08);
+
+            --transition-fast: 150ms ease;
+            --transition: 200ms ease;
+            --transition-slow: 300ms ease;
+        }
+
+        /* ========================================
+           RESET & BASE
+           ======================================== */
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font);
+            background: var(--bg-base);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100dvh;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #444; }
+
+        /* ========================================
+           HEADER
+           ======================================== */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 28px;
+            height: 56px;
+            background: var(--bg-elevated);
+            border-bottom: 1px solid var(--border-subtle);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(12px);
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .header-logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .logo-icon {
+            width: 36px;
+            height: 36px;
+            background: var(--jd-gold-glow);
+            border: 1px solid rgba(240,171,0,0.2);
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 0.7rem;
+            color: var(--jd-gold);
+            letter-spacing: 0.5px;
+        }
+
+        img.logo-icon { object-fit: cover; padding: 0; }
+
+        .logo-text-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .logo-text {
+            font-size: 1.1rem;
+            font-weight: 800;
+            letter-spacing: 1.5px;
+            color: var(--text-primary);
+            line-height: 1;
+        }
+
+        .logo-sub {
+            font-size: 0.65rem;
+            font-weight: 400;
+            color: var(--text-muted);
+            letter-spacing: 0.5px;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .header-badge {
+            padding: 4px 12px;
+            border-radius: var(--radius-xl);
+            font-size: 0.7rem;
+            font-weight: 600;
+            background: var(--jd-gold-glow);
+            color: var(--jd-gold);
+            border: 1px solid rgba(240,171,0,0.15);
+            letter-spacing: 0.5px;
+        }
+
+        .header-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            border-radius: var(--radius-sm);
+            font-size: 0.78rem;
+            font-weight: 500;
+            font-family: var(--font);
+            cursor: pointer;
+            transition: var(--transition);
+            text-decoration: none;
+            border: 1px solid var(--border-medium);
+            background: transparent;
+            color: var(--text-secondary);
+            white-space: nowrap;
+        }
+
+        .header-btn:hover {
+            background: var(--bg-card-hover);
+            color: var(--text-primary);
+            border-color: var(--text-muted);
+        }
+
+        .header-btn svg {
+            width: 14px;
+            height: 14px;
+            flex-shrink: 0;
+        }
+
+        /* ========================================
+           LAYOUT
+           ======================================== */
+        .main {
+            max-width: 100%;
+            margin: 0 auto;
+            padding: 32px clamp(28px, 4vw, 80px) 64px;
+        }
+
+        .page-header {
+            margin-bottom: 28px;
+        }
+
+        .page-header__title {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 6px;
+            letter-spacing: -0.02em;
+        }
+
+        .page-header__desc {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            max-width: 100%;
+            line-height: 1.5;
+        }
+
+        /* ========================================
+           CARD / FORM CONTAINER
+           ======================================== */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            position: relative;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--jd-gold), var(--jd-gold-dim));
+            border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+        }
+
+        .card__header {
+            background: var(--bg-surface);
+            padding: 14px 24px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .card__header-icon {
+            width: 8px;
+            height: 8px;
+            background: var(--jd-gold);
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .card__header-text {
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        .card__body {
+            padding: 28px 24px;
+        }
+
+        /* ========================================
+           FORM ELEMENTS
+           ======================================== */
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .form-group--full {
+            grid-column: 1 / -1;
+        }
+
+        .form-label {
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .form-label__required {
+            color: var(--alert-red);
+            font-weight: 400;
+        }
+
+        .form-label__optional {
+            color: var(--text-muted);
+            font-weight: 400;
+            font-size: 0.72rem;
+        }
+
+        .form-helper {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            line-height: 1.4;
+        }
+
+        .form-input {
+            height: 42px;
+            padding: 0 14px;
+            font-size: 0.85rem;
+            font-family: var(--font);
+            color: var(--text-primary);
+            background: var(--bg-input);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-sm);
+            outline: none;
+            transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+        }
+
+        .form-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .form-input:hover {
+            border-color: var(--border-medium);
+        }
+
+        .form-input:focus {
+            border-color: var(--jd-gold);
+            box-shadow: 0 0 0 3px var(--jd-gold-glow);
+        }
+
+        .form-input--error {
+            border-color: var(--alert-red);
+        }
+
+        .form-input--error:focus {
+            box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
+        }
+
+        .form-error {
+            font-size: 0.72rem;
+            color: var(--alert-red);
+            display: none;
+        }
+
+        .form-error--visible {
+            display: block;
+        }
+
+        /* Date inputs */
+        input[type="date"] {
+            cursor: pointer;
+            color-scheme: dark;
+        }
+
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            cursor: pointer;
+            filter: invert(1);
+            opacity: 0.5;
+            transition: opacity var(--transition-fast);
+        }
+
+        input[type="date"]::-webkit-calendar-picker-indicator:hover {
+            opacity: 0.8;
+        }
+
+        /* ========================================
+           DIVIDER
+           ======================================== */
+        .form-divider {
+            grid-column: 1 / -1;
+            height: 1px;
+            background: var(--border-subtle);
+            margin: 4px 0;
+        }
+
+        /* ========================================
+           ACTIONS / BUTTONS
+           ======================================== */
+        .form-actions {
+            grid-column: 1 / -1;
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            padding-top: 8px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            height: 42px;
+            padding: 0 24px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            font-family: var(--font);
+            border: none;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            user-select: none;
+            white-space: nowrap;
+        }
+
+        .btn:focus-visible {
+            outline: 2px solid var(--jd-gold);
+            outline-offset: 2px;
+        }
+
+        .btn--primary {
+            background: var(--jd-gold);
+            color: var(--text-inverse);
+        }
+
+        .btn--primary:hover {
+            background: var(--jd-gold-dim);
+            box-shadow: var(--shadow-glow-jd);
+        }
+
+        .btn--primary:active {
+            transform: scale(0.98);
+        }
+
+        .btn--primary:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn--secondary {
+            background: transparent;
+            color: var(--text-secondary);
+            border: 1px solid var(--border-medium);
+        }
+
+        .btn--secondary:hover {
+            background: var(--bg-card-hover);
+            color: var(--text-primary);
+            border-color: var(--text-muted);
+        }
+
+        .btn__icon {
+            width: 16px;
+            height: 16px;
+            flex-shrink: 0;
+        }
+
+        /* Spinner inside button */
+        .btn__spinner {
+            width: 16px;
+            height: 16px;
+            border: 2.5px solid rgba(10, 10, 10, 0.2);
+            border-top-color: var(--text-inverse);
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            display: none;
+        }
+
+        .btn--loading .btn__spinner {
+            display: block;
+        }
+
+        .btn--loading .btn__label {
+            display: none;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* ========================================
+           STATUS / FEEDBACK AREA
+           ======================================== */
+        .status-bar {
+            margin-top: 20px;
+            display: none;
+        }
+
+        .status-bar--visible {
+            display: block;
+        }
+
+        .status-card {
+            padding: 14px 18px;
+            border-radius: var(--radius-md);
+            font-size: 0.82rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-card--processing {
+            background: var(--jd-gold-glow);
+            border: 1px solid rgba(240,171,0,0.2);
+            color: var(--jd-gold);
+        }
+
+        .status-card--success {
+            background: var(--accent-green-bg);
+            border: 1px solid rgba(34,197,94,0.2);
+            color: var(--accent-green);
+        }
+
+        .status-card--error {
+            background: rgba(239,68,68,0.08);
+            border: 1px solid rgba(239,68,68,0.2);
+            color: var(--alert-red);
+        }
+
+        .status-spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(240,171,0,0.2);
+            border-top-color: var(--jd-gold);
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            flex-shrink: 0;
+        }
+
+        /* ========================================
+           PDF PREVIEW AREA
+           ======================================== */
+        .preview-section {
+            margin-top: 28px;
+            display: none;
+        }
+
+        .preview-section--visible {
+            display: block;
+        }
+
+        .preview-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 14px;
+        }
+
+        .preview-header__title {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .preview-header__actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .preview-frame {
+            width: 100%;
+            height: clamp(400px, 60vh, 900px);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            background: #1a1a1a;
+        }
+
+        /* ========================================
+           FOOTER
+           ======================================== */
+        .footer {
+            text-align: center;
+            padding: 24px;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            border-top: 1px solid var(--border-subtle);
+            letter-spacing: 0.5px;
+        }
+
+        /* ========================================
+           RESPONSIVE
+           ======================================== */
+        @media (max-width: 640px) {
+            .main {
+                padding: 20px 16px 48px;
+            }
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+            .form-actions {
+                flex-direction: column-reverse;
+            }
+            .form-actions .btn {
+                width: 100%;
+            }
+            .logo-sub {
+                display: none;
+            }
+            .preview-frame {
+                height: 400px;
+            }
+            .preview-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
+            }
+            .batch-header {
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+        }
+
+        /* ========================================
+           LARGE SCREENS / TV (1600px+)
+           ======================================== */
+        @media (min-width: 1600px) {
+            html { font-size: clamp(16px, 1.1vw, 22px); }
+            .header { padding: 0 clamp(20px, 3vw, 60px); }
+            .page-header__title { font-size: 1.8rem; }
+            .card__body { padding: 36px 40px; }
+            .form-grid { gap: 28px; }
+            .form-label { font-size: 0.85rem; }
+            .form-input { padding: 12px 16px; font-size: 0.95rem; }
+            .btn { padding: 12px 28px; font-size: 0.9rem; }
+            .preview-frame { height: clamp(500px, 65vh, 1000px); }
+        }
+
+        /* ========================================
+           REDUCED MOTION
+           ======================================== */
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+
+        /* ========================================
+           BATCH MENSAL — indicador de progresso
+           ======================================== */
+        .batch-section {
+            display: none;
+            margin-top: 28px;
+        }
+
+        .batch-header-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .batch-trigger-btn {
+            background: transparent;
+            border: 1px solid rgba(96,165,250,0.45);
+            color: #60a5fa;
+            border-radius: var(--radius-sm);
+            padding: 6px 14px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            font-family: inherit;
+            letter-spacing: 0.5px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            white-space: nowrap;
+        }
+
+        .batch-trigger-btn:hover:not(:disabled) {
+            background: rgba(96,165,250,0.12);
+            border-color: #60a5fa;
+        }
+
+        .batch-trigger-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .batch-toggle-btn {
+            background: transparent;
+            border: 1px solid var(--border-subtle);
+            color: var(--text-muted);
+            border-radius: var(--radius-sm);
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            flex-shrink: 0;
+            padding: 0;
+        }
+
+        .batch-toggle-btn:hover {
+            color: var(--text-primary);
+            border-color: var(--border-medium);
+        }
+
+        .batch-toggle-btn svg {
+            width: 14px;
+            height: 14px;
+            transition: transform 0.2s ease;
+        }
+
+        .batch-section--collapsed .batch-body {
+            display: none;
+        }
+
+        .batch-section--collapsed .batch-toggle-btn svg {
+            transform: rotate(180deg);
+        }
+
+        .batch-estado-label {
+            grid-column: 1 / -1;
+            font-size: 0.68rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            padding: 10px 2px 2px;
+            border-bottom: 1px solid var(--border-subtle);
+            margin-bottom: 4px;
+        }
+
+        .batch-section--visible {
+            display: block;
+        }
+
+        .batch-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            position: relative;
+        }
+
+        .batch-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #3b82f6, #60a5fa);
+            border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+        }
+
+        .batch-header {
+            background: var(--bg-surface);
+            padding: 14px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .batch-header-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .batch-header-icon {
+            width: 8px;
+            height: 8px;
+            background: #3b82f6;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .batch-header-icon--running {
+            animation: batchPulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes batchPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .batch-header-text {
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        .batch-header-badge {
+            padding: 3px 10px;
+            border-radius: var(--radius-xl);
+            font-size: 0.68rem;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .batch-header-badge--running {
+            background: rgba(59,130,246,0.12);
+            color: #60a5fa;
+            border: 1px solid rgba(59,130,246,0.2);
+        }
+
+        .batch-header-badge--done {
+            background: var(--accent-green-bg);
+            color: var(--accent-green);
+            border: 1px solid rgba(34,197,94,0.2);
+        }
+
+        .batch-body {
+            padding: 20px 24px;
+        }
+
+        .batch-overall {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .batch-overall-label {
+            font-size: 0.82rem;
+            color: var(--text-secondary);
+        }
+
+        .batch-overall-pct {
+            font-size: 1rem;
+            font-weight: 700;
+            color: #60a5fa;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .batch-overall-track {
+            width: 100%;
+            height: 8px;
+            background: var(--bg-input);
+            border-radius: 4px;
+            overflow: hidden;
+            border: 1px solid var(--border-subtle);
+            margin-bottom: 20px;
+        }
+
+        .batch-overall-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #3b82f6, #60a5fa);
+            border-radius: 4px;
+            transition: width 0.5s ease;
+        }
+
+        .batch-overall-fill--done {
+            background: linear-gradient(90deg, #16a34a, #22c55e);
+        }
+
+        .batch-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 12px;
+        }
+
+        .batch-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            background: var(--bg-surface);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            transition: border-color var(--transition-fast);
+        }
+
+        .batch-item--done {
+            border-color: rgba(34,197,94,0.25);
+        }
+
+        .batch-item--running {
+            border-color: rgba(59,130,246,0.3);
+        }
+
+        .batch-item--error {
+            border-color: rgba(239,68,68,0.25);
+        }
+
+        .batch-item-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .batch-item-id {
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .batch-item-msg {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .batch-item-pct {
+            font-size: 0.78rem;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            min-width: 38px;
+            text-align: right;
+        }
+
+        .batch-item-pct--done { color: var(--accent-green); }
+        .batch-item-pct--running { color: #60a5fa; }
+        .batch-item-pct--pending { color: var(--text-muted); }
+        .batch-item-pct--error { color: var(--alert-red); }
+
+        .batch-item-actions {
+            flex-shrink: 0;
+        }
+
+        .batch-dl-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            font-family: var(--font);
+            color: var(--accent-green);
+            background: var(--accent-green-bg);
+            border: 1px solid rgba(34,197,94,0.2);
+            border-radius: var(--radius-xs);
+            text-decoration: none;
+            cursor: pointer;
+            transition: var(--transition-fast);
+        }
+
+        .batch-dl-btn:hover {
+            background: rgba(34,197,94,0.18);
+            border-color: rgba(34,197,94,0.35);
+        }
+
+        .batch-dl-btn svg {
+            width: 12px;
+            height: 12px;
+        }
+
+        .batch-item-spinner {
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(59,130,246,0.2);
+            border-top-color: #60a5fa;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            flex-shrink: 0;
+        }
+
+        /* ========================================
+           PROGRESS BAR (geração de relatório)
+           ======================================== */
+        .progress-container {
+            display: none;
+            margin-top: 20px;
+            padding: 20px 24px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+        }
+
+        .progress-container--visible {
+            display: block;
+        }
+
+        .progress-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .progress-label {
+            font-size: 0.82rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+
+        .progress-pct {
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: var(--jd-gold);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .progress-track {
+            width: 100%;
+            height: 10px;
+            background: var(--bg-input);
+            border-radius: 5px;
+            overflow: hidden;
+            border: 1px solid var(--border-subtle);
+        }
+
+        .progress-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, var(--jd-gold-dim), var(--jd-gold));
+            border-radius: 5px;
+            transition: width 0.4s ease;
+        }
+
+        .progress-message {
+            margin-top: 10px;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            min-height: 1.2em;
+        }
+
+        .progress-fill--done {
+            background: linear-gradient(90deg, #16a34a, #22c55e);
+        }
+
+        .progress-fill--error {
+            background: linear-gradient(90deg, #dc2626, #ef4444);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- HEADER -->
+    <header class="header">
+        <div class="header-left">
+            <div class="header-logo">
+                <img class="logo-icon" src="/logo/logo-rda.png" alt="RDA" />
+                <div class="logo-text-group">
+                    <span class="logo-text">RDA</span>
+                    <span class="logo-sub">Veneza Equipamentos &middot; CSC</span>
+                </div>
+            </div>
+        </div>
+        <div class="header-right">
+            <span class="header-badge">v0.2.6.5</span>
+            <a class="header-btn" id="btn-command-link" href="#" title="Voltar ao Command Center" style="color:#3b82f6">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+                    <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+                </svg>
+                Command
+            </a>
+            <a class="header-btn" id="btn-rts-link" href="#" title="Ir para o RTS">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="19" y1="12" x2="5" y2="12"/>
+                    <polyline points="12 19 5 12 12 5"/>
+                </svg>
+                RTS
+            </a>
+            <a class="header-btn" id="btn-rta-link" href="#" title="Ir para o RTA" style="color:#ef4444">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                    <line x1="12" y1="9" x2="12" y2="13"/>
+                    <line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+                RTA
+            </a>
+            <a class="header-btn" id="btn-rca-link" href="#" title="Ir para o RCA" style="color:#F0AB00">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <path d="M12 18v-6"/><path d="M9 15l3 3 3-3"/>
+                </svg>
+                RCA
+            </a>
+            <a class="header-btn" id="btn-fi-link" href="#" title="Ir para o Fleet Intelligence" style="color:#60A5FA">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+                    <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+                </svg>
+                FI
+            </a>
+        </div>
+    </header>
+
+    <!-- MAIN CONTENT -->
+    <main class="main">
+
+        <!-- PAGE HEADER -->
+        <div class="page-header">
+            <h1 class="page-header__title">Gerar Relatório de Desempenho</h1>
+            <p class="page-header__desc">
+                Informe o <strong>ID JD</strong> para o relatório completo da frota, ou o <strong>Chassi</strong> para o relatório individual por equipamento.
+                O PDF é gerado a partir dos dados do Operations Center (JDLink).
+            </p>
+        </div>
+
+        <!-- FORM CARD -->
+        <div class="card">
+            <div class="card__header">
+                <div class="card__header-icon"></div>
+                <span class="card__header-text">Parâmetros do Relatório</span>
+            </div>
+            <div class="card__body">
+                <form id="formRelatorio" class="form-grid" novalidate>
+
+                    <!-- ID JD -->
+                    <div class="form-group">
+                        <label class="form-label" for="id_jd">
+                            ID JD (Operations Center)
+                            <span class="form-label__optional" id="label-idjd-hint">ou informe o chassi →</span>
+                        </label>
+                        <input
+                            type="text"
+                            id="id_jd"
+                            name="id_jd"
+                            class="form-input"
+                            placeholder="Ex: 5975148"
+                            inputmode="numeric"
+                            pattern="[0-9]+"
+                            autocomplete="off"
+                        >
+                        <span class="form-helper">Código numérico da organização no Operations Center (relatório de frota)</span>
+                        <span class="form-error" id="error_id_jd">Informe o ID JD (numérico) ou o chassi do equipamento</span>
+                    </div>
+
+                    <!-- CHASSI -->
+                    <div class="form-group">
+                        <label class="form-label" for="chassi">
+                            Chassi do Equipamento
+                            <span class="form-label__optional" id="label-chassi-hint">ou informe o ID JD ←</span>
+                        </label>
+                        <input
+                            type="text"
+                            id="chassi"
+                            name="chassi"
+                            class="form-input"
+                            placeholder="Ex: 1BZ310GPNP..."
+                            autocomplete="off"
+                        >
+                        <span class="form-helper">Relatório individual por equipamento — não requer ID JD</span>
+                    </div>
+
+                    <div class="form-divider"></div>
+
+                    <!-- DATA INICIAL -->
+                    <div class="form-group">
+                        <label class="form-label" for="data_inicial">
+                            Data Inicial
+                            <span class="form-label__required">*</span>
+                        </label>
+                        <input
+                            type="date"
+                            id="data_inicial"
+                            name="data_inicial"
+                            class="form-input"
+                            required
+                        >
+                        <span class="form-helper">Início do período de análise</span>
+                        <span class="form-error" id="error_data_inicial">Selecione a data inicial</span>
+                    </div>
+
+                    <!-- DATA FINAL -->
+                    <div class="form-group">
+                        <label class="form-label" for="data_final">
+                            Data Final
+                            <span class="form-label__required">*</span>
+                        </label>
+                        <input
+                            type="date"
+                            id="data_final"
+                            name="data_final"
+                            class="form-input"
+                            required
+                        >
+                        <span class="form-helper">Fim do período de análise</span>
+                        <span class="form-error" id="error_data_final">Selecione a data final</span>
+                    </div>
+
+                    <!-- ACTIONS -->
+                    <div class="form-actions">
+                        <button type="reset" class="btn btn--secondary" id="btnLimpar">
+                            Limpar
+                        </button>
+                        <button type="submit" class="btn btn--primary" id="btnGerar">
+                            <svg class="btn__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                <polyline points="14 2 14 8 20 8"/>
+                                <line x1="16" y1="13" x2="8" y2="13"/>
+                                <line x1="16" y1="17" x2="8" y2="17"/>
+                                <polyline points="10 9 9 9 8 9"/>
+                            </svg>
+                            <span class="btn__label">Gerar Relatório</span>
+                            <span class="btn__spinner"></span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- STATUS BAR -->
+        <div class="status-bar" id="statusBar">
+            <div class="status-card" id="statusCard">
+                <div class="status-spinner" id="statusSpinner"></div>
+                <span id="statusText">Processando...</span>
+            </div>
+        </div>
+
+        <!-- PROGRESS BAR -->
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-header">
+                <span class="progress-label">Progresso da geração</span>
+                <span class="progress-pct" id="progressPct">0%</span>
+            </div>
+            <div class="progress-track">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div class="progress-message" id="progressMessage">Aguardando...</div>
+        </div>
+
+        <!-- PDF PREVIEW -->
+        <section class="preview-section" id="previewSection">
+            <div class="preview-header">
+                <h2 class="preview-header__title">Relatório Gerado</h2>
+                <div class="preview-header__actions">
+                    <a class="btn btn--secondary" id="btnDownload" href="#" download>
+                        <svg class="btn__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="7 10 12 15 17 10"/>
+                            <line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                        Download PDF
+                    </a>
+                </div>
+            </div>
+            <iframe class="preview-frame" id="pdfFrame" title="Preview do relatório PDF"></iframe>
+        </section>
+
+        <!-- BATCH MENSAL — relatórios automáticos (abaixo do painel manual) -->
+        <section class="batch-section" id="batchSection">
+            <div class="batch-card">
+                <div class="batch-header">
+                    <div class="batch-header-left">
+                        <div class="batch-header-icon" id="batchHeaderIcon"></div>
+                        <span class="batch-header-text">Relatórios Mensais Automáticos</span>
+                    </div>
+                    <div class="batch-header-right">
+                        <span class="batch-header-badge" id="batchBadge"></span>
+                        <button type="button" class="batch-trigger-btn" id="btnBatchManual" title="Gera agora os relatórios do mês anterior para todos os clientes estratégicos configurados">
+                            Gerar Relatórios dos Clientes Estratégicos
+                        </button>
+                        <button type="button" class="batch-toggle-btn" id="btnBatchToggle" title="Minimizar / expandir painel">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"/></svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="batch-body">
+                    <div class="batch-overall">
+                        <span class="batch-overall-label" id="batchOverallLabel">Progresso geral</span>
+                        <span class="batch-overall-pct" id="batchOverallPct">0%</span>
+                    </div>
+                    <div class="batch-overall-track">
+                        <div class="batch-overall-fill" id="batchOverallFill"></div>
+                    </div>
+                    <div class="batch-grid" id="batchGrid"></div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="footer">
+        Veneza Equipamentos &middot; Centro de Soluções Conectadas &middot; RDA v0.2.6.5
+    </footer>
+
+    <!-- CLIENT-SIDE LOGIC -->
+    <script>
+        (function () {
+            'use strict';
+
+            // Links dinâmicos para navegação entre sistemas (mesmo host, portas distintas)
+            var _cmd = document.getElementById('btn-command-link');
+            if (_cmd) _cmd.href =
+              window.location.protocol + '//' + window.location.hostname + ':4001';
+            document.getElementById('btn-rts-link').href =
+              window.location.protocol + '//' + window.location.hostname + ':8080';
+            document.getElementById('btn-rta-link').href =
+              window.location.protocol + '//' + window.location.hostname + ':3021';
+            document.getElementById('btn-rca-link').href =
+              window.location.protocol + '//' + window.location.hostname + ':3031';
+            document.getElementById('btn-fi-link').href =
+              window.location.protocol + '//' + window.location.hostname + ':8087';
+
+            // =====================================================
+            // BATCH MENSAL — polling de status
+            // =====================================================
+            (function initBatch() {
+                const batchSection = document.getElementById('batchSection');
+                const batchGrid = document.getElementById('batchGrid');
+                const batchOverallPct = document.getElementById('batchOverallPct');
+                const batchOverallFill = document.getElementById('batchOverallFill');
+                const batchOverallLabel = document.getElementById('batchOverallLabel');
+                const batchBadge = document.getElementById('batchBadge');
+                const batchHeaderIcon = document.getElementById('batchHeaderIcon');
+                const btnBatchManual = document.getElementById('btnBatchManual');
+                const btnBatchToggle = document.getElementById('btnBatchToggle');
+
+                // Minimizar/expandir — preferência persistida no navegador
+                if (btnBatchToggle) {
+                    try {
+                        if (localStorage.getItem('rda_batch_collapsed') === '1') {
+                            batchSection.classList.add('batch-section--collapsed');
+                        }
+                    } catch (e) {}
+                    btnBatchToggle.addEventListener('click', function() {
+                        var collapsed = batchSection.classList.toggle('batch-section--collapsed');
+                        try { localStorage.setItem('rda_batch_collapsed', collapsed ? '1' : '0'); } catch (e) {}
+                    });
+                }
+
+                let batchPolling = null;
+                let lastBatchStatus = 'idle';
+
+                function renderBatch(data) {
+                    var clientes = (data && data.clientes) || {};
+                    var hasClientes = Object.keys(clientes).length > 0;
+                    var isIdle = !data || data.status === 'idle' || !data.ids || data.ids.length === 0;
+
+                    // Sem execução no mês E sem clientes configurados → esconde tudo
+                    if (isIdle && !hasClientes) {
+                        batchSection.classList.remove('batch-section--visible');
+                        return;
+                    }
+
+                    batchSection.classList.add('batch-section--visible');
+
+                    // Badge
+                    const isRunning = !isIdle && data.status === 'running';
+                    const isDone = !isIdle && data.status === 'done';
+                    batchBadge.textContent = isIdle ? 'AGENDADO — DIA 01' : isRunning ? 'EM ANDAMENTO' : isDone ? 'CONCLUÍDO' : 'ERRO';
+                    batchBadge.className = 'batch-header-badge ' + (isRunning ? 'batch-header-badge--running' : 'batch-header-badge--done');
+                    batchHeaderIcon.className = 'batch-header-icon' + (isRunning ? ' batch-header-icon--running' : '');
+
+                    // Botão de disparo manual — bloqueado enquanto roda
+                    if (btnBatchManual) btnBatchManual.disabled = isRunning;
+
+                    // Mês de referência
+                    if (!isIdle && data.month) {
+                        var parts = data.month.split('-');
+                        var meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+                        var mesNome = meses[parseInt(parts[1], 10) - 1] || parts[1];
+                        batchOverallLabel.textContent = 'Relatórios de ' + mesNome + '/' + parts[0];
+                    } else if (isIdle) {
+                        batchOverallLabel.textContent = 'Clientes estratégicos — geração automática todo dia 01';
+                    }
+
+                    // Progresso geral
+                    if (isIdle) {
+                        batchOverallPct.textContent = '—';
+                        batchOverallFill.style.width = '0%';
+                        batchOverallFill.className = 'batch-overall-fill';
+                    } else {
+                        var totalPct = 0;
+                        var count = data.ids.length;
+                        data.ids.forEach(function(id) {
+                            var p = data.progress[id];
+                            if (p) totalPct += (p.progress || 0);
+                        });
+                        var overallPct = Math.round(totalPct / count);
+                        batchOverallPct.textContent = overallPct + '%';
+                        batchOverallFill.style.width = overallPct + '%';
+                        batchOverallFill.className = 'batch-overall-fill' + (isDone ? ' batch-overall-fill--done' : '');
+                    }
+
+                    // Grid de itens — agrupados por estado, exibindo o nome do cliente
+                    // Em idle (sem execução no mês), lista os clientes configurados
+                    var idsBase = (!isIdle && data.ids && data.ids.length) ? data.ids : Object.keys(clientes);
+                    var progressMap = (data && data.progress) || {};
+                    batchGrid.innerHTML = '';
+                    var lastEstado = null;
+                    // Ordena mantendo grupos de estado contíguos (ordem original dentro do grupo)
+                    var estadoOrder = (data && data.estados) || [];
+                    var idsOrdenados = idsBase.slice().sort(function(a, b) {
+                        var ea = (clientes[a] && clientes[a].estado) || '';
+                        var eb = (clientes[b] && clientes[b].estado) || '';
+                        if (ea === eb) return idsBase.indexOf(a) - idsBase.indexOf(b);
+                        var ia = estadoOrder.indexOf(ea), ib = estadoOrder.indexOf(eb);
+                        if (ia !== -1 && ib !== -1) return ia - ib;
+                        return ea.localeCompare(eb);
+                    });
+                    idsOrdenados.forEach(function(id) {
+                        var cli = clientes[id] || {};
+                        var estado = cli.estado || '';
+                        if (estado && estado !== lastEstado) {
+                            var estadoEl = document.createElement('div');
+                            estadoEl.className = 'batch-estado-label';
+                            estadoEl.textContent = estado;
+                            batchGrid.appendChild(estadoEl);
+                            lastEstado = estado;
+                        }
+
+                        var p = progressMap[id] || {};
+                        var st = p.status || 'pending';
+                        var pct = p.progress || 0;
+
+                        var item = document.createElement('div');
+                        item.className = 'batch-item batch-item--' + st;
+
+                        var infoDiv = document.createElement('div');
+                        infoDiv.className = 'batch-item-info';
+
+                        var idEl = document.createElement('div');
+                        idEl.className = 'batch-item-id';
+                        idEl.textContent = cli.nome || ('ID ' + id);
+                        idEl.title = 'ID JD: ' + id;
+                        infoDiv.appendChild(idEl);
+
+                        var msgEl = document.createElement('div');
+                        msgEl.className = 'batch-item-msg';
+                        msgEl.textContent = p.message || (isIdle ? 'Aguardando próxima geração' : '');
+                        msgEl.title = msgEl.textContent;
+                        infoDiv.appendChild(msgEl);
+
+                        item.appendChild(infoDiv);
+
+                        if (st === 'running') {
+                            var spinner = document.createElement('div');
+                            spinner.className = 'batch-item-spinner';
+                            item.appendChild(spinner);
+                        }
+
+                        var pctEl = document.createElement('span');
+                        pctEl.className = 'batch-item-pct batch-item-pct--' + st;
+                        pctEl.textContent = isIdle ? '—' : (pct + '%');
+                        item.appendChild(pctEl);
+
+                        if (st === 'done' && p.pdf_url) {
+                            var actionsDiv = document.createElement('div');
+                            actionsDiv.className = 'batch-item-actions';
+                            var dl = document.createElement('a');
+                            dl.className = 'batch-dl-btn';
+                            dl.href = p.pdf_url;
+                            dl.download = p.filename || '';
+                            dl.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>PDF';
+                            actionsDiv.appendChild(dl);
+                            item.appendChild(actionsDiv);
+                        }
+
+                        batchGrid.appendChild(item);
+                    });
+                }
+
+                function pollBatch() {
+                    fetch('/api/batch-mensal/status', { credentials: 'same-origin' })
+                        .then(function(res) { return res.ok ? res.json() : null; })
+                        .then(function(data) {
+                            if (!data) return;
+                            renderBatch(data);
+                            lastBatchStatus = data.status;
+
+                            // Se running, poll rápido; se done/error, poll lento
+                            clearInterval(batchPolling);
+                            if (data.status === 'running') {
+                                batchPolling = setInterval(pollBatch, 3000);
+                            } else if (data.status !== 'idle') {
+                                batchPolling = setInterval(pollBatch, 60000);
+                            }
+                        })
+                        .catch(function() {});
+                }
+
+                // Disparo manual — usa o mesmo período do batch automático
+                // (mês anterior inteiro) e não interfere no agendamento do dia 01.
+                if (btnBatchManual) {
+                    btnBatchManual.addEventListener('click', function() {
+                        if (btnBatchManual.disabled) return;
+                        var ok = window.confirm(
+                            'Gerar agora os relatórios do mês anterior para todos os clientes estratégicos?\n\n' +
+                            'A geração é sequencial e pode levar vários minutos. ' +
+                            'Relatórios já gerados neste mês serão substituídos.'
+                        );
+                        if (!ok) return;
+                        btnBatchManual.disabled = true;
+                        fetch('/api/batch-mensal/trigger', { method: 'POST', credentials: 'same-origin' })
+                            .then(function(res) { return res.json().catch(function() { return {}; }); })
+                            .then(function(body) {
+                                if (body && body.message) console.log('[Batch]', body.message);
+                                pollBatch();
+                            })
+                            .catch(function() {
+                                btnBatchManual.disabled = false;
+                                window.alert('Falha ao iniciar a geração. Verifique a conexão e tente novamente.');
+                            });
+                    });
+                }
+
+                // Poll inicial + a cada 30s até saber o status
+                pollBatch();
+                batchPolling = setInterval(pollBatch, 30000);
+            })();
+
+            const form = document.getElementById('formRelatorio');
+            const btnGerar = document.getElementById('btnGerar');
+            const statusBar = document.getElementById('statusBar');
+            const statusCard = document.getElementById('statusCard');
+            const statusSpinner = document.getElementById('statusSpinner');
+            const statusText = document.getElementById('statusText');
+            const previewSection = document.getElementById('previewSection');
+            const pdfFrame = document.getElementById('pdfFrame');
+            const btnDownload = document.getElementById('btnDownload');
+
+            // Default dates (last 30 days)
+            const today = new Date();
+            const thirtyDaysAgo = new Date(today);
+            thirtyDaysAgo.setDate(today.getDate() - 30);
+
+            document.getElementById('data_final').value = formatDateISO(today);
+            document.getElementById('data_inicial').value = formatDateISO(thirtyDaysAgo);
+
+            function formatDateISO(date) {
+                return date.toISOString().split('T')[0];
+            }
+
+            // Validation
+            function validateForm() {
+                let isValid = true;
+                clearErrors();
+
+                const chassiVal = document.getElementById('chassi').value.trim();
+                const idJdEl    = document.getElementById('id_jd');
+                const idJdVal   = idJdEl.value.trim();
+
+                // id_jd obrigatorio apenas quando chassi nao foi informado
+                if (!chassiVal) {
+                    if (!idJdVal || !/^\d+$/.test(idJdVal)) {
+                        showError('id_jd', 'error_id_jd');
+                        isValid = false;
+                    }
+                }
+
+                const dataInicial = document.getElementById('data_inicial');
+                if (!dataInicial.value) {
+                    showError('data_inicial', 'error_data_inicial');
+                    isValid = false;
+                }
+
+                const dataFinal = document.getElementById('data_final');
+                if (!dataFinal.value) {
+                    showError('data_final', 'error_data_final');
+                    isValid = false;
+                }
+
+                if (dataInicial.value && dataFinal.value && dataInicial.value > dataFinal.value) {
+                    document.getElementById('error_data_inicial').textContent = 'Data inicial deve ser anterior à data final';
+                    showError('data_inicial', 'error_data_inicial');
+                    isValid = false;
+                }
+
+                return isValid;
+            }
+
+            function showError(inputId, errorId) {
+                document.getElementById(inputId).classList.add('form-input--error');
+                document.getElementById(errorId).classList.add('form-error--visible');
+            }
+
+            function clearErrors() {
+                document.querySelectorAll('.form-input--error').forEach(el => el.classList.remove('form-input--error'));
+                document.querySelectorAll('.form-error--visible').forEach(el => el.classList.remove('form-error--visible'));
+            }
+
+            // Inline validation on blur
+            document.querySelectorAll('.form-input').forEach(input => {
+                input.addEventListener('blur', function () {
+                    const errorEl = this.parentElement.querySelector('.form-error');
+                    if (errorEl) {
+                        this.classList.remove('form-input--error');
+                        errorEl.classList.remove('form-error--visible');
+                    }
+                });
+            });
+
+            // Status helpers
+            function setStatus(type, text) {
+                statusBar.classList.add('status-bar--visible');
+                statusCard.className = 'status-card status-card--' + type;
+                statusText.textContent = text;
+                statusSpinner.style.display = type === 'processing' ? 'block' : 'none';
+            }
+
+            function hideStatus() {
+                statusBar.classList.remove('status-bar--visible');
+            }
+
+            // Progress bar helpers
+            const progressContainer = document.getElementById('progressContainer');
+            const progressFill = document.getElementById('progressFill');
+            const progressPct = document.getElementById('progressPct');
+            const progressMessage = document.getElementById('progressMessage');
+
+            function showProgress(pct, msg, state) {
+                progressContainer.classList.add('progress-container--visible');
+                progressFill.style.width = pct + '%';
+                progressFill.className = 'progress-fill' + (state === 'done' ? ' progress-fill--done' : state === 'error' ? ' progress-fill--error' : '');
+                progressPct.textContent = pct + '%';
+                if (msg) progressMessage.textContent = msg;
+            }
+
+            function hideProgress() {
+                progressContainer.classList.remove('progress-container--visible');
+                progressFill.style.width = '0%';
+                progressFill.className = 'progress-fill';
+                progressPct.textContent = '0%';
+                progressMessage.textContent = 'Aguardando...';
+            }
+
+            // Polling de progresso
+            function pollProgress(jobId) {
+                return new Promise(function (resolve, reject) {
+                    var interval = setInterval(async function () {
+                        try {
+                            var res = await fetch('/api/progresso/' + jobId, { credentials: 'same-origin' });
+                            if (!res.ok) { clearInterval(interval); reject(new Error('Erro ao consultar progresso')); return; }
+                            var job = await res.json();
+                            showProgress(job.progress || 0, job.message || '', job.status);
+                            if (job.status === 'done') {
+                                clearInterval(interval);
+                                resolve(job.result);
+                            } else if (job.status === 'error') {
+                                clearInterval(interval);
+                                reject(new Error(job.message || 'Erro na geração'));
+                            }
+                        } catch (err) {
+                            clearInterval(interval);
+                            reject(err);
+                        }
+                    }, 1500);
+                });
+            }
+
+            // Flag para forçar regeneração (bypass de cache)
+            let forceRegen = false;
+
+            // Form submit
+            form.addEventListener('submit', async function (e) {
+                e.preventDefault();
+                if (!validateForm()) {
+                    const firstError = form.querySelector('.form-input--error');
+                    if (firstError) firstError.focus();
+                    return;
+                }
+
+                const payload = {
+                    id_jd: document.getElementById('id_jd').value.trim(),
+                    chassi: document.getElementById('chassi').value.trim() || null,
+                    data_inicial: document.getElementById('data_inicial').value,
+                    data_final: document.getElementById('data_final').value,
+                    force: forceRegen,
+                };
+                forceRegen = false;  // Reset após uso
+
+                btnGerar.classList.add('btn--loading');
+                btnGerar.disabled = true;
+                previewSection.classList.remove('preview-section--visible');
+                hideProgress();
+                setStatus('processing', 'Iniciando geração do relatório...');
+
+                try {
+                    const response = await fetch('/api/gerar-relatorio', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'same-origin',
+                        body: JSON.stringify(payload),
+                    });
+
+                    if (!response.ok) {
+                        const err = await response.json().catch(() => ({}));
+                        throw new Error(err.message || 'Erro ao gerar relatório');
+                    }
+
+                    const initResult = await response.json();
+
+                    // Cache hit — resposta imediata (sem job_id)
+                    if (initResult.cached) {
+                        setStatus('success', 'Relatório encontrado em cache (gerado anteriormente). Para forçar nova geração, clique em "Regerar".');
+                        showReportPreview(initResult, true);
+                        return;
+                    }
+
+                    // Geração assíncrona — iniciar polling
+                    if (!initResult.job_id) throw new Error('Resposta inesperada do servidor.');
+                    showProgress(0, 'Iniciando geração...', 'running');
+
+                    const result = await pollProgress(initResult.job_id);
+                    setStatus('success', 'Relatório gerado com sucesso!');
+                    showReportPreview(result, false);
+
+                } catch (err) {
+                    setStatus('error', err.message || 'Erro inesperado ao gerar o relatório.');
+                    showProgress(0, err.message || 'Erro', 'error');
+                } finally {
+                    btnGerar.classList.remove('btn--loading');
+                    btnGerar.disabled = false;
+                }
+            });
+
+            function showReportPreview(result, cached) {
+                pdfFrame.src = result.pdf_url;
+                btnDownload.href = result.pdf_url;
+                btnDownload.download = result.filename || 'relatorio.pdf';
+                previewSection.classList.add('preview-section--visible');
+
+                // Mostrar/esconder botão de regerar
+                let btnRegen = document.getElementById('btnRegerar');
+                if (cached && !btnRegen) {
+                    btnRegen = document.createElement('button');
+                    btnRegen.id = 'btnRegerar';
+                    btnRegen.className = 'btn btn--secondary';
+                    btnRegen.style.marginLeft = '8px';
+                    btnRegen.innerHTML = '<span class="btn__label">Regerar</span>';
+                    btnRegen.onclick = function() {
+                        forceRegen = true;
+                        btnRegen.remove();
+                        form.requestSubmit();
+                    };
+                    document.querySelector('.preview-header__actions').appendChild(btnRegen);
+                } else if (!cached && btnRegen) {
+                    btnRegen.remove();
+                }
+
+                setTimeout(() => {
+                    previewSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 300);
+            }
+
+            // Reset
+            form.addEventListener('reset', function () {
+                setTimeout(() => {
+                    clearErrors();
+                    hideStatus();
+                    hideProgress();
+                    previewSection.classList.remove('preview-section--visible');
+                    pdfFrame.src = '';
+                    document.getElementById('data_final').value = formatDateISO(today);
+                    document.getElementById('data_inicial').value = formatDateISO(thirtyDaysAgo);
+                }, 0);
+            });
+        })();
+    </script>
+</body>
+</html>

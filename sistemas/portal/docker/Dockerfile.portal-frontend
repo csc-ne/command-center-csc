@@ -1,0 +1,50 @@
+# =========== PORTAL VENEZANET ============
+# Dockerfile.portal-frontend — Frontend Node.js (static + proxy)
+# ==========================================
+#
+# Build context: pasta portal/ (um nível acima de docker/).
+# Serve o frontend estático e faz proxy /api → backend.
+
+FROM node:18-alpine AS base
+
+LABEL org.opencontainers.image.title="portal-frontend"
+LABEL org.opencontainers.image.description="Venezanet Portal - Frontend (Express + proxy)"
+
+ENV NODE_ENV=production \
+    TZ=America/Recife \
+    NPM_CONFIG_LOGLEVEL=warn
+
+WORKDIR /app
+
+# -------- Timezone --------
+RUN apk add --no-cache tzdata curl \
+    && cp /usr/share/zoneinfo/$TZ /etc/localtime \
+    && echo "$TZ" > /etc/timezone
+
+# -------- Dependências Node --------
+COPY frontend/package.json frontend/package-lock.json* /app/frontend/
+RUN cd /app/frontend && \
+    if [ -f package-lock.json ]; then \
+        npm ci --omit=dev; \
+    else \
+        npm install --omit=dev; \
+    fi
+
+# -------- Código da aplicação --------
+COPY frontend/server.js            /app/frontend/server.js
+COPY frontend/index.html           /app/frontend/index.html
+COPY frontend/backgroundCSC.jpg    /app/frontend/backgroundCSC.jpg
+COPY frontend/AdesivoMelhorCSC.png /app/frontend/AdesivoMelhorCSC.png
+COPY frontend/login-bg.png         /app/frontend/login-bg.png
+COPY frontend/PSI.jpeg             /app/frontend/PSI.jpeg
+
+# -------- Usuário não-root --------
+RUN chown -R node:node /app
+USER node
+
+EXPOSE 4001
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -fsS http://127.0.0.1:4001/healthz || exit 1
+
+CMD ["node", "frontend/server.js"]

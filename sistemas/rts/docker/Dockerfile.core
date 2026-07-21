@@ -1,0 +1,99 @@
+# =========== RTS - REAL TIME SUPPORT ============
+# Dockerfile.core — container headless que roda MessageShooter
+# ================================================
+#
+# Build context: raiz do projeto RTS (um nível acima de docker/).
+# Por isso os COPY usam caminhos relativos à raiz.
+#
+# Uso (via docker-compose):
+#   build:
+#     context: ..
+#     dockerfile: docker/Dockerfile.core
+#
+# Este container NÃO roda:
+#   - PySide6 / Qt (GUI continua no host)
+#   - Flask/Selenium do interface/app.py (OAuth JD continua manual no host)
+#   - Node.js (dashboard está em outro container)
+
+FROM python:3.11-slim AS base
+
+# -------- Metadados --------
+LABEL org.opencontainers.image.title="rts-core"
+LABEL org.opencontainers.image.description="RTS headless — monitora alertas e dispara WhatsApp"
+LABEL org.opencontainers.image.source="https://github.com/seu-org/rts"
+
+# -------- Variáveis de ambiente base --------
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    RTS_HEADLESS=1 \
+    TZ=America/Recife
+
+WORKDIR /app
+
+# -------- Dependências de sistema --------
+# tzdata: define corretamente o horário local (business_hours depende disso)
+# ca-certificates: TLS para APIs externas (Graph, JD, MySQL TLS)
+# curl: healthcheck HTTP
+# build-essential + default-libmysqlclient-dev: necessários em alguns ambientes
+# para buildar wheels que não vêm pré-compilados (mysql-connector-python já
+# vem em wheel, mas mantemos por segurança). Se quiser imagem menor, pode-se
+# remover e confirmar que o pip install não falha.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        tzdata \
+        ca-certificates \
+        curl \
+    && ln -sf /usr/share/zoneinfo/$TZ /etc/localtime \
+    && echo "$TZ" > /etc/timezone \
+    && rm -rf /var/lib/apt/lists/*
+
+# -------- Dependências Python --------
+# Copiamos primeiro só o requirements para aproveitar o cache de layer
+COPY docker/requirements.docker.txt /app/requirements.docker.txt
+RUN pip install --no-cache-dir -r /app/requirements.docker.txt
+
+# -------- Código da aplicação --------
+# Arquivos Python do core (sem interface/, sem debug/, sem .archive/)
+COPY main.py                    /app/main.py
+COPY rts_core.py                /app/rts_core.py
+COPY business_hours.py          /app/business_hours.py
+COPY BD_alertas.py              /app/BD_alertas.py
+COPY alerts_api.py              /app/alerts_api.py
+COPY whatsapp_api.py            /app/whatsapp_api.py
+COPY batch_alert_sender.py      /app/batch_alert_sender.py
+COPY validators.py              /app/validators.py
+COPY token_wpp_manager.py       /app/token_wpp_manager.py
+COPY lib                        /app/lib
+
+# Módulo Python de logging (logs/__init__.py + logs/src/loggers.py)
+# OBS: refreshing_token.py, export_alerts.py e debug/ NÃO vão — em modo
+# headless o main.py stub de JD token e ninguém mais importa esses.
+COPY logs/__init__.py           /app/logs/__init__.py
+COPY logs/src/__init__.py       /app/logs/src/__init__.py
+COPY logs/src/loggers.py        /app/logs/src/loggers.py
+
+# Logos/assets usados em logs ou templates (se algum módulo importar)
+COPY logo.png                   /app/logo.png
+
+# Diretório de saída dos logs (Logger cria em tempo de execução; criamos
+# aqui para garantir permissão correta ao usuário 'rts' abaixo).
+RUN mkdir -p /app/logs/output
+
+# -------- Usuário não-root --------
+# A aplicação escreve em /app/logs — garantimos que 'rts' tem permissão.
+RUN useradd --system --no-create-home --shell /usr/sbin/nologin rts \
+    && chown -R rts:rts /app
+USER rts
+
+# -------- Porta de status --------
+EXPOSE 5001
+
+# -------- Healthcheck --------
+# /healthz responde 200 OK enquanto o processo estiver vivo.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD curl -fsS http://127.0.0.1:5001/healthz || exit 1
+
+# -------- Entrypoint --------
+# stdout/stderr vão direto pros docker logs (PYTHONUNBUFFERED=1).
+CMD ["python", "-u", "rts_core.py"]

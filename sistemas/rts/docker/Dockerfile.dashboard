@@ -1,0 +1,71 @@
+# =========== RTS - REAL TIME SUPPORT ============
+# Dockerfile.dashboard — container do painel web (Node/Express/Socket.IO)
+# ================================================
+#
+# Build context: raiz do projeto RTS (um nível acima de docker/).
+#
+# Este container roda o servidor em connection/server.js:
+#   - Express + Socket.IO
+#   - Firebase Admin SDK
+#   - Conexão MySQL via connection/db.js
+#
+# O serviceAccount.json NÃO vai para a imagem (está em .dockerignore).
+# Ele é montado como volume em runtime pelo docker-compose.
+
+FROM node:18-alpine AS base
+
+LABEL org.opencontainers.image.title="rts-dashboard"
+LABEL org.opencontainers.image.description="RTS painel web — alertas + Firebase + métricas"
+
+ENV NODE_ENV=production \
+    TZ=America/Recife \
+    NPM_CONFIG_LOGLEVEL=warn
+
+WORKDIR /app
+
+# -------- Timezone --------
+RUN apk add --no-cache tzdata curl \
+    && cp /usr/share/zoneinfo/$TZ /etc/localtime \
+    && echo "$TZ" > /etc/timezone
+
+# -------- Dependências Node --------
+# Copia só package.json/lock primeiro para aproveitar cache.
+COPY package.json package-lock.json* /app/
+# Se houver lockfile usa ci (determinístico), senão cai em install.
+RUN if [ -f package-lock.json ]; then \
+        npm ci --omit=dev; \
+    else \
+        npm install --omit=dev; \
+    fi
+
+# -------- Código da aplicação --------
+# Arquivos servidos + lógica do servidor
+COPY connection/db.js       /app/connection/db.js
+COPY connection/server.js   /app/connection/server.js
+COPY index.html             /app/index.html
+COPY login.html             /app/login.html
+COPY script.js              /app/script.js
+COPY style.css              /app/style.css
+COPY src                    /app/src
+COPY favicon.jpg            /app/favicon.jpg
+COPY logo.png               /app/logo.png
+COPY logo-rts.png           /app/logo-rts.png
+COPY logoJD.png             /app/logoJD.png
+COPY whatsapp-icon-logo.png /app/whatsapp-icon-logo.png
+COPY AdesivoMelhorCSC.png   /app/AdesivoMelhorCSC.png
+COPY backgroundCSC.jpg      /app/backgroundCSC.jpg
+COPY WIRTGEN_Logo.png       /app/WIRTGEN_Logo.png
+COPY OperadorNota1000.mp4   /app/OperadorNota1000.mp4
+COPY audios                 /app/audios
+
+# -------- Usuário não-root --------
+# Imagem node já vem com o user 'node' (uid=1000).
+RUN chown -R node:node /app
+USER node
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD curl -fsS http://127.0.0.1:8080/ || exit 1
+
+CMD ["node", "connection/server.js"]

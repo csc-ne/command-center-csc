@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FFD633"/>
+      <stop offset="100%" stop-color="#E09500"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(100,100)">
+    <!-- Gear teeth -->
+    <polygon points="
+      -15,-88 15,-88 18,-68 -18,-68
+    " fill="url(#g1)"/>
+    <polygon points="
+      -15,88 15,88 18,68 -18,68
+    " fill="url(#g1)"/>
+    <polygon points="
+      -88,-15 -88,15 -68,18 -68,-18
+    " fill="url(#g1)"/>
+    <polygon points="
+      88,-15 88,15 68,18 68,-18
+    " fill="url(#g1)"/>
+    <polygon points="
+      48,-75 72,-61 56,-44 33,-58
+    " fill="url(#g1)"/>
+    <polygon points="
+      -72,61 -48,75 -33,58 -56,44
+    " fill="url(#g1)"/>
+    <polygon points="
+      48,75 72,61 56,44 33,58
+    " fill="url(#g1)"/>
+    <polygon points="
+      -72,-61 -48,-75 -33,-58 -56,-44
+    " fill="url(#g1)"/>
+    <!-- Gear body -->
+    <circle cx="0" cy="0" r="62" fill="url(#g1)"/>
+    <!-- Dark inner circle -->
+    <circle cx="0" cy="0" r="46" fill="#1a1a1a"/>
+    <!-- Gray ring -->
+    <circle cx="0" cy="0" r="46" fill="none" stroke="#666" stroke-width="4" opacity="0.5"/>
+    <!-- Checkmark -->
+    <polyline points="-22,4 -6,20 26,-14" fill="none" stroke="white" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

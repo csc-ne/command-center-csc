@@ -1,0 +1,90 @@
+# =========== PSI Dashboard — Post Sales Intelligence ============
+# docker-compose.yml — 2 serviços: Backend (file storage) + Frontend
+# Sem PostgreSQL — processamento xlsx é client-side (SheetJS no browser)
+# ================================================================
+#
+# Execução:
+#   cd portal/psi-dashboard/docker
+#   docker compose --env-file C:/env/.env up -d --build
+#
+# .env centralizado em C:\env\.env (Windows Server VM).
+#
+# Portas padrão:
+#   - Backend API: 4014
+#   - Frontend:    4015
+
+name: psi-dashboard
+
+services:
+
+  psi-backend:
+    image: psi-backend:latest
+    container_name: psi-backend
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.backend
+    restart: unless-stopped
+    environment:
+      PSI_BACKEND_PORT: "4014"
+      PORTAL_JWT_SECRET: "${PORTAL_JWT_SECRET}"
+      PSI_UPLOAD_ALLOWED_EMAILS: "${PSI_UPLOAD_ALLOWED_EMAILS}"
+      TZ: "America/Recife"
+    ports:
+      - "${PSI_BACKEND_PORT:-4014}:4014"
+    volumes:
+      - psi-data:/app/data
+      - ../backend/server.js:/app/server.js:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:4014/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - psi-net
+
+  psi-frontend:
+    image: psi-frontend:latest
+    container_name: psi-frontend
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.frontend
+    restart: unless-stopped
+    environment:
+      PSI_FRONTEND_PORT: "4015"
+      PSI_BACKEND_URL: "http://psi-backend:4014"
+      TZ: "America/Recife"
+    ports:
+      - "${PSI_FRONTEND_PORT:-4015}:4015"
+    depends_on:
+      psi-backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:4015/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - psi-net
+    volumes:
+      - ../frontend/index.html:/app/index.html:ro
+      - ../frontend/server.js:/app/server.js:ro
+
+volumes:
+  psi-data:
+    driver: local
+
+networks:
+  psi-net:
+    driver: bridge

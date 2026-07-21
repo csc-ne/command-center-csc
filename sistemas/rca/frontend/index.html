@@ -1,0 +1,1129 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RCA — Report Chemistry Analysis</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+  <!-- TV MODE: ?tv=1 na URL ativa zoom para TV 50" Full HD -->
+  <script>
+    (function(){
+      var p = new URLSearchParams(window.location.search);
+      var z = p.get('tv');
+      if (z === '1' || z === 'true') {
+        document.documentElement.style.zoom = '1.4';
+      } else if (z) {
+        var n = parseFloat(z);
+        if (n > 0 && n < 5) document.documentElement.style.zoom = String(n);
+      }
+    })();
+  </script>
+  <style>
+    :root {
+      --bg-base:#0a0a0a;--bg-elevated:#111111;--bg-surface:#161616;--bg-card:#1a1a1a;
+      --bg-card-hover:#222222;--bg-input:#141414;--border-subtle:#262626;--border-medium:#333333;
+      --border-focus:#F0AB00;
+      --jd-gold:#F0AB00;--jd-gold-dim:#c48d00;--jd-gold-glow:rgba(240,171,0,0.12);
+      --rca-accent:#F0AB00;--rca-accent-dim:#c48d00;--rca-accent-glow:rgba(240,171,0,0.12);
+      --status-normal:#22c55e;--status-normal-bg:rgba(34,197,94,0.1);
+      --status-anormal:#f97316;--status-anormal-bg:rgba(249,115,22,0.1);
+      --status-atencao:#eab308;--status-atencao-bg:rgba(234,179,8,0.1);
+      --status-critico:#ef4444;--status-critico-bg:rgba(239,68,68,0.1);
+      --accent-green:#22c55e;--accent-green-bg:rgba(34,197,94,0.1);
+      --text-primary:#f5f5f5;--text-secondary:#a3a3a3;--text-muted:#525252;--text-inverse:#0a0a0a;
+      --font:'Inter',system-ui,-apple-system,sans-serif;
+      --radius-xs:4px;--radius-sm:6px;--radius-md:10px;--radius-lg:14px;--radius-xl:20px;
+      --shadow-sm:0 1px 2px rgba(0,0,0,.5);--shadow-md:0 4px 16px rgba(0,0,0,.6);
+      --shadow-lg:0 8px 32px rgba(0,0,0,.8);
+      --transition-fast:150ms ease;--transition:200ms ease;--transition-slow:300ms ease;
+    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:var(--font);background:var(--bg-base);color:var(--text-primary);-webkit-font-smoothing:antialiased;overflow-x:hidden;line-height:1.5}
+    ::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:transparent}
+    ::-webkit-scrollbar-thumb{background:#333;border-radius:3px}::-webkit-scrollbar-thumb:hover{background:#444}
+
+    /* HEADER */
+    .header{display:flex;align-items:center;justify-content:space-between;padding:0 28px;height:56px;background:var(--bg-elevated);border-bottom:1px solid var(--border-subtle);position:sticky;top:0;z-index:100;backdrop-filter:blur(12px)}
+    .header-left{display:flex;align-items:center;gap:14px}
+    .header-logo{display:flex;align-items:center;gap:10px}
+    .logo-icon{width:36px;height:36px;border-radius:var(--radius-sm);object-fit:contain}
+    .logo-icon svg{width:22px;height:22px;fill:#fff}
+    .logo-text-group{display:flex;flex-direction:column}
+    .logo-text{font-size:1.1rem;font-weight:800;letter-spacing:1.5px;color:var(--text-primary);line-height:1}
+    .logo-sub{font-size:0.65rem;font-weight:400;color:var(--text-muted);letter-spacing:0.5px}
+    .header-center{display:flex;align-items:center;gap:16px}
+    .header-right{display:flex;align-items:center;gap:10px}
+    .status-bar{display:flex;align-items:center;gap:8px;padding:4px 12px;border-radius:var(--radius-xl);background:var(--accent-green-bg);border:1px solid rgba(34,197,94,0.2)}
+    .status-dot{width:6px;height:6px;border-radius:50%;background:var(--accent-green);animation:statusPulse 2s ease-in-out infinite}
+    @keyframes statusPulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(34,197,94,0.4)}50%{opacity:0.7;box-shadow:0 0 0 4px rgba(34,197,94,0)}}
+    .status-text{font-size:0.72rem;font-weight:500;color:var(--accent-green);text-transform:uppercase;letter-spacing:0.5px}
+
+    /* DATE PICKER */
+    .date-picker-bar{display:flex;align-items:center;gap:8px;padding:0 28px;height:42px;background:var(--bg-surface);border-bottom:1px solid var(--border-subtle)}
+    .date-picker-bar label{font-size:0.7rem;color:var(--text-muted);font-weight:500;text-transform:uppercase;letter-spacing:0.5px}
+    .date-input{padding:4px 10px;border-radius:var(--radius-sm);border:1px solid var(--border-subtle);background:var(--bg-input);color:var(--text-primary);font-family:var(--font);font-size:0.78rem;outline:none}
+    .date-input:focus{border-color:var(--rca-accent);box-shadow:0 0 0 3px var(--rca-accent-glow)}
+    .date-preset{padding:4px 12px;border-radius:var(--radius-xl);font-size:0.7rem;font-weight:500;border:1px solid var(--border-subtle);background:transparent;color:var(--text-muted);cursor:pointer;font-family:var(--font);transition:var(--transition)}
+    .date-preset:hover{border-color:var(--text-muted);color:var(--text-secondary)}
+    .date-preset.active{background:var(--rca-accent);color:var(--text-inverse);border-color:var(--rca-accent)}
+
+    /* BUTTONS */
+    .btn{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:var(--radius-sm);font-size:0.78rem;font-weight:500;font-family:var(--font);cursor:pointer;transition:var(--transition);text-decoration:none;border:1px solid var(--border-medium);background:transparent;color:var(--text-secondary);white-space:nowrap}
+    .btn:hover{background:var(--bg-card-hover);color:var(--text-primary);border-color:var(--text-muted)}
+    .btn-primary{background:var(--rca-accent);color:var(--text-inverse);border-color:var(--rca-accent);font-weight:600}
+    .btn-primary:hover{background:var(--rca-accent-dim);border-color:var(--rca-accent-dim);color:var(--text-inverse)}
+    .btn svg{width:14px;height:14px;flex-shrink:0}
+
+    /* TABS */
+    .tabs-wrapper{background:var(--bg-elevated);border-bottom:1px solid var(--border-subtle);padding:0 28px}
+    .tabs{display:flex;gap:0}
+    .tab{padding:10px 20px;font-size:0.82rem;font-weight:500;color:var(--text-muted);cursor:pointer;border:none;border-bottom:2px solid transparent;background:none;font-family:var(--font);transition:var(--transition);position:relative}
+    .tab:hover{color:var(--text-secondary)}.tab.active{color:var(--rca-accent);border-bottom-color:var(--rca-accent)}
+
+    /* MAIN */
+    .main{padding:20px clamp(28px,3vw,60px) 40px;max-width:100%;margin:0 auto}
+    .tab-content{display:none}.tab-content.active{display:block}
+    .section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+    .section-label{font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:2px;color:var(--text-muted)}
+
+    /* OVERVIEW CARDS */
+    .overview-grid{display:grid;grid-template-columns:1fr 2fr 1fr;gap:16px;margin-bottom:20px}
+    @media(max-width:1100px){.overview-grid{grid-template-columns:1fr}}
+
+    .big-stat-card{background:var(--bg-card);border-radius:var(--radius-lg);border:1px solid var(--border-subtle);padding:28px 24px;text-align:center;position:relative;overflow:hidden}
+    .big-stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--rca-accent),var(--rca-accent-dim))}
+    .big-stat-label{font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;color:var(--text-muted);margin-bottom:10px}
+    .big-stat-value{font-size:3.2rem;font-weight:800;color:var(--rca-accent);font-variant-numeric:tabular-nums;line-height:1}
+
+    /* STATUS CARDS (criticidades) */
+    .status-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+    @media(max-width:800px){.status-cards{grid-template-columns:repeat(2,1fr)}}
+    .status-card{text-align:center;padding:16px 10px;border-radius:var(--radius-md);background:var(--bg-card);border:1px solid var(--border-subtle);position:relative;overflow:hidden;transition:var(--transition)}
+    .status-card:hover{transform:translateY(-2px);border-color:var(--border-medium)}
+    .status-card::after{content:'';position:absolute;bottom:0;left:20%;right:20%;height:2px;border-radius:1px;opacity:0.6}
+    .status-card.normal::after{background:var(--status-normal)}.status-card.anormal::after{background:var(--status-anormal)}
+    .status-card.atencao::after{background:var(--status-atencao)}.status-card.critico::after{background:var(--status-critico)}
+    .status-card-label{font-size:0.65rem;font-weight:600;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+    .status-card-label.normal{color:var(--status-normal)}.status-card-label.anormal{color:var(--status-anormal)}
+    .status-card-label.atencao{color:var(--status-atencao)}.status-card-label.critico{color:var(--status-critico)}
+    .status-card-value{font-size:2rem;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+    .status-card-value.normal{color:var(--status-normal)}.status-card-value.anormal{color:var(--status-anormal)}
+    .status-card-value.atencao{color:var(--status-atencao)}.status-card-value.critico{color:var(--status-critico)}
+
+    /* PANELS */
+    .grid-2col{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+    @media(max-width:1200px){.grid-2col{grid-template-columns:1fr}}
+    .grid-1col{margin-bottom:20px}
+    .panel{background:var(--bg-card);border-radius:var(--radius-lg);border:1px solid var(--border-subtle);overflow:hidden;transition:var(--transition)}
+    .panel:hover{border-color:var(--border-medium)}
+    .panel-header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border-subtle);background:var(--bg-surface)}
+    .panel-title{font-size:0.82rem;font-weight:600;color:var(--text-secondary);display:flex;align-items:center;gap:8px}
+    .panel-title svg{width:16px;height:16px;color:var(--text-muted)}
+    .panel-badge{font-size:0.7rem;padding:2px 10px;border-radius:10px;font-weight:700;font-variant-numeric:tabular-nums}
+    .panel-badge.teal{background:var(--rca-accent-glow);color:var(--rca-accent);border:1px solid rgba(240,171,0,0.2)}
+    .panel-badge.red{background:var(--status-critico-bg);color:var(--status-critico);border:1px solid rgba(239,68,68,0.2)}
+    .panel-body{padding:0;position:relative}
+
+    /* MAP */
+    #map{width:100%;height:clamp(400px,35vh,700px);background:var(--bg-base)}
+    .leaflet-popup-content-wrapper{background:var(--bg-card)!important;color:var(--text-primary)!important;border-radius:var(--radius-md)!important;box-shadow:var(--shadow-lg)!important;border:1px solid var(--border-medium)!important}
+    .leaflet-popup-tip{background:var(--bg-card)!important}
+    .popup-info{font-size:0.78rem;line-height:1.7}.popup-info strong{color:var(--rca-accent);font-size:0.85rem}
+    .popup-label{color:var(--text-muted);font-size:0.72rem}.popup-value{color:var(--text-secondary)}
+    .popup-divider{border:none;border-top:1px solid var(--border-subtle);margin:6px 0}
+
+    /* TABLE */
+    .table-wrapper{overflow-x:auto;max-height:clamp(400px,35vh,700px);overflow-y:auto}
+    table{width:100%;border-collapse:collapse;font-size:0.78rem}
+    thead th{position:sticky;top:0;background:var(--bg-surface);padding:10px 14px;text-align:left;font-weight:600;font-size:0.68rem;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-muted);border-bottom:1px solid var(--border-subtle);white-space:nowrap;cursor:pointer;user-select:none}
+    thead th:hover{color:var(--rca-accent)}
+    tbody tr{border-bottom:1px solid var(--border-subtle);transition:background var(--transition-fast)}
+    tbody tr:hover{background:rgba(255,255,255,0.02)}
+    tbody td{padding:9px 14px;white-space:nowrap;color:var(--text-secondary);font-variant-numeric:tabular-nums}
+    .td-status{font-weight:700;text-transform:uppercase;font-size:0.7rem;letter-spacing:0.5px;padding:2px 8px;border-radius:var(--radius-xs);display:inline-block}
+    .td-status.NORMAL{color:var(--status-normal);background:var(--status-normal-bg)}
+    .td-status.ANORMAL{color:var(--status-anormal);background:var(--status-anormal-bg)}
+    .td-status.ATENCAO{color:var(--status-atencao);background:var(--status-atencao-bg)}
+    .td-status.CRITICO{color:var(--status-critico);background:var(--status-critico-bg)}
+
+    /* CHART */
+    .chart-container{padding:20px;height:clamp(320px,30vh,600px);position:relative}
+
+    /* FILTER */
+    .filters-bar{display:flex;gap:6px;padding:10px 18px;border-bottom:1px solid var(--border-subtle);flex-wrap:wrap;align-items:center;background:var(--bg-surface)}
+    .filter-chip{padding:5px 14px;border-radius:var(--radius-xl);font-size:0.72rem;font-weight:500;border:1px solid var(--border-subtle);background:transparent;color:var(--text-muted);cursor:pointer;transition:var(--transition);font-family:var(--font)}
+    .filter-chip:hover{border-color:var(--text-muted);color:var(--text-secondary)}
+    .filter-chip.active{background:var(--rca-accent);color:var(--text-inverse);border-color:var(--rca-accent);font-weight:600}
+    .filter-divider{width:1px;height:20px;background:var(--border-subtle);margin:0 4px}
+    .filter-search{flex:1;min-width:200px;padding:6px 14px;border-radius:var(--radius-xl);border:1px solid var(--border-subtle);background:var(--bg-input);color:var(--text-primary);font-size:0.78rem;font-family:var(--font);outline:none;transition:var(--transition)}
+    .filter-search:focus{border-color:var(--rca-accent);box-shadow:0 0 0 3px var(--rca-accent-glow)}
+    .filter-search::placeholder{color:var(--text-muted)}
+
+    /* LOADING / EMPTY */
+    .loading{display:flex;align-items:center;justify-content:center;gap:10px;padding:48px;color:var(--text-muted);font-size:0.82rem}
+    .spinner{width:18px;height:18px;border:2px solid var(--border-subtle);border-top-color:var(--jd-gold);border-radius:50%;animation:spin 0.7s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .empty-state{text-align:center;padding:48px 20px;color:var(--text-muted);font-size:0.85rem}
+
+    /* RESPONSIVE */
+    @media(min-width:1600px){
+      html{font-size:clamp(16px,1.1vw,22px)}
+      .header{padding:0 clamp(20px,3vw,60px)}
+      .status-card-value{font-size:2.6rem}
+      .big-stat-value{font-size:4rem}
+      .panel-header{padding:18px 24px}
+      thead th{padding:12px 18px;font-size:0.72rem}
+      tbody td{padding:11px 18px;font-size:0.82rem}
+    }
+    @media(max-width:768px){.header{padding:0 16px}.main{padding:16px}.tabs-wrapper{padding:0 16px}.overview-grid{grid-template-columns:1fr}.logo-sub{display:none}.date-picker-bar{flex-wrap:wrap;height:auto;padding:8px 16px}}
+    @media(prefers-reduced-motion:no-preference){.panel,.status-card,.big-stat-card{animation:fadeUp 300ms ease both}@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}}
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="header">
+    <div class="header-left">
+      <div class="header-logo">
+        <img class="logo-icon" src="/logo/logo-rca.png" alt="RCA" />
+        <div class="logo-text-group">
+          <span class="logo-text">RCA</span>
+          <span class="logo-sub">Report Chemistry Analysis</span>
+        </div>
+      </div>
+    </div>
+    <div class="header-center">
+      <div class="status-bar">
+        <span class="status-dot"></span>
+        <span class="status-text" id="statusText">Online</span>
+      </div>
+    </div>
+    <div class="header-right">
+      <span style="font-size:0.72rem;color:var(--text-muted)" id="lastUpdate"></span>
+      <button class="btn btn-primary" onclick="refreshAll()" aria-label="Atualizar dados">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+        </svg>
+        Atualizar
+      </button>
+      <a class="btn" id="btn-command-link" href="#" aria-label="Voltar ao Command Center" style="color:#3b82f6">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+        </svg>
+        Command
+      </a>
+      <a class="btn" id="btn-back-rts" href="#" aria-label="Ir para o RTS">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
+        </svg>
+        RTS
+      </a>
+      <a class="btn" id="btn-rta-link" href="#" aria-label="Ir para o RTA" style="color:#3b82f6">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+          <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+        RTA
+      </a>
+      <a class="btn" id="btn-rda-link" href="#" aria-label="Ir para o RDA" style="color:var(--jd-gold)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="16" y1="13" x2="8" y2="13"/>
+          <line x1="16" y1="17" x2="8" y2="17"/>
+        </svg>
+        RDA
+      </a>
+      <a class="btn" id="btn-fi-link" href="#" aria-label="Ir para o Fleet Intelligence" style="color:#60A5FA">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+          <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+        </svg>
+        FI
+      </a>
+    </div>
+  </header>
+
+  <!-- DATE PICKER BAR -->
+  <div class="date-picker-bar">
+    <label>Periodo:</label>
+    <button class="date-preset" data-preset="today">Hoje</button>
+    <button class="date-preset" data-preset="yesterday">Ontem</button>
+    <button class="date-preset" data-preset="7d">7 dias</button>
+    <button class="date-preset active" data-preset="30d">30 dias</button>
+    <button class="date-preset" data-preset="month">Mes atual</button>
+    <button class="date-preset" data-preset="90d">90 dias</button>
+    <div class="filter-divider"></div>
+    <label>De:</label>
+    <input type="date" class="date-input" id="dateStart" />
+    <label>Ate:</label>
+    <input type="date" class="date-input" id="dateEnd" />
+    <button class="btn" onclick="applyCustomDates()" style="padding:4px 12px;font-size:0.72rem">Aplicar</button>
+  </div>
+
+  <!-- TABS -->
+  <div class="tabs-wrapper">
+    <nav class="tabs">
+      <button class="tab active" data-tab="dashboard">Visao Geral</button>
+      <button class="tab" data-tab="resultados">Resultados Detalhados</button>
+      <button class="tab" data-tab="processamento">Processamento</button>
+    </nav>
+  </div>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <!-- TAB: DASHBOARD (VISAO GERAL) -->
+    <div class="tab-content active" id="tab-dashboard">
+      <div class="section-header">
+        <span class="section-label">Visao Geral das Amostras — <span id="periodLabel">Ultimos 30 dias</span></span>
+      </div>
+
+      <!-- Overview cards: Total + Criticidades -->
+      <div class="overview-grid">
+        <div class="big-stat-card">
+          <div class="big-stat-label">Total de Amostras</div>
+          <div class="big-stat-value" id="totalAmostras">--</div>
+        </div>
+        <div>
+          <div class="status-cards" id="statusCards">
+            <div class="status-card normal"><div class="status-card-label normal">Normal</div><div class="status-card-value normal" id="countNormal">--</div></div>
+            <div class="status-card anormal"><div class="status-card-label anormal">Anormal</div><div class="status-card-value anormal" id="countAnormal">--</div></div>
+            <div class="status-card atencao"><div class="status-card-label atencao">Atencao</div><div class="status-card-value atencao" id="countAtencao">--</div></div>
+          </div>
+        </div>
+        <div class="big-stat-card">
+          <span id="countCritico" style="display:none">0</span>
+          <div class="big-stat-label">Amostras Criticas</div>
+          <div class="big-stat-value" id="totalCriticos" style="color:var(--status-critico)">--</div>
+        </div>
+      </div>
+
+      <!-- Contagem por dia + Distribuicao por origem -->
+      <div class="grid-2col">
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+              Contagem de Amostras Processadas
+            </span>
+          </div>
+          <div class="chart-container"><canvas id="chartAmostrasDia"></canvas></div>
+        </div>
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+              Total de Amostras por Ponto de Origem
+            </span>
+          </div>
+          <div class="chart-container"><canvas id="chartOrigem"></canvas></div>
+        </div>
+      </div>
+
+      <!-- Distribuicao por Estado + Criticidade em barras -->
+      <div class="grid-2col">
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+              Distribuicao de Amostras por Estado
+            </span>
+          </div>
+          <div class="chart-container"><canvas id="chartEstado"></canvas></div>
+        </div>
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+              Contagem de Amostras por Criticidade
+            </span>
+          </div>
+          <div class="chart-container"><canvas id="chartCriticidadeBar"></canvas></div>
+        </div>
+      </div>
+
+      <!-- Criticos: tabela + mapa -->
+      <div class="section-header" style="margin-top:8px">
+        <span class="section-label">Resultados Criticos</span>
+      </div>
+      <div class="grid-2col">
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+              Ultimos Resultados Criticos
+            </span>
+            <span class="panel-badge red" id="criticosCount">0</span>
+          </div>
+          <div class="panel-body">
+            <div class="table-wrapper" id="criticosTable">
+              <div class="loading"><div class="spinner"></div> Carregando...</div>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+              Geolocalizacao dos Criticos
+            </span>
+            <span class="panel-badge red" id="geoCount">0</span>
+          </div>
+          <div class="panel-body">
+            <div id="map"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB: RESULTADOS DETALHADOS -->
+    <div class="tab-content" id="tab-resultados">
+      <div class="section-header">
+        <span class="section-label">Ultimos Resultados no Periodo</span>
+      </div>
+      <div class="panel grid-1col">
+        <div class="panel-header">
+          <span class="panel-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+            Resultados Completos com Analises
+          </span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <button class="btn" onclick="exportResultadosCSV()" style="padding:4px 12px;font-size:0.7rem">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              CSV
+            </button>
+            <span class="panel-badge teal" id="resultadosCount">0</span>
+          </div>
+        </div>
+        <div class="filters-bar">
+          <button class="filter-chip active" data-filter-status="">Todos</button>
+          <button class="filter-chip" data-filter-status="NORMAL">Normal</button>
+          <button class="filter-chip" data-filter-status="ANORMAL">Anormal</button>
+          <button class="filter-chip" data-filter-status="ATENCAO">Atencao</button>
+          <button class="filter-chip" data-filter-status="CRITICO">Critico</button>
+          <div class="filter-divider"></div>
+          <input class="filter-search" type="text" id="searchResultados" placeholder="Buscar chassi, modelo, obra, cidade..." aria-label="Buscar resultados" />
+        </div>
+        <div class="panel-body">
+          <div class="table-wrapper" id="resultadosTableWrapper" style="max-height:clamp(500px,50vh,900px)">
+            <div class="loading"><div class="spinner"></div> Carregando...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB: PROCESSAMENTO -->
+    <div class="tab-content" id="tab-processamento">
+      <div class="section-header">
+        <span class="section-label">Processamento de Amostras</span>
+      </div>
+
+      <div class="grid-2col">
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+              Amostras por Familia de Equipamento
+            </span>
+          </div>
+          <div class="chart-container"><canvas id="chartFamilia"></canvas></div>
+        </div>
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+              Total de Amostras por Cliente (Top 10)
+            </span>
+          </div>
+          <div class="chart-container"><canvas id="chartCliente"></canvas></div>
+        </div>
+      </div>
+
+      <!-- Modelo + Compartimento -->
+      <div class="grid-2col">
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+              Contagem de Amostras por Modelo
+            </span>
+          </div>
+          <div class="chart-container"><canvas id="chartModelo"></canvas></div>
+        </div>
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+              Contagem de Amostras por Compartimento
+            </span>
+          </div>
+          <div class="chart-container"><canvas id="chartCompartimento"></canvas></div>
+        </div>
+      </div>
+
+      <div class="section-header" style="margin-top:8px">
+        <span class="section-label">Amostras Canceladas e Segregadas</span>
+      </div>
+      <div class="panel grid-1col">
+        <div class="panel-header">
+          <span class="panel-title">Totais por Cliente e Situacao</span>
+          <span class="panel-badge teal" id="canceladasCount">0</span>
+        </div>
+        <div class="panel-body">
+          <div class="table-wrapper" id="canceladasTable">
+            <div class="loading"><div class="spinner"></div> Carregando...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const API = window.location.origin;
+    const REFRESH_INTERVAL = 5 * 60;
+
+    let map = null, markersLayer = null;
+    let chartAmostrasDia = null, chartOrigem = null, chartFamilia = null, chartCliente = null;
+    let chartEstado = null, chartCriticidadeBar = null, chartModelo = null, chartCompartimento = null;
+    let allResultados = [];
+    let currentStatusFilter = "";
+    let countdownTimer = null;
+
+    // Default: ultimos 30 dias
+    let dateStart = addDays(todayStr(), -29);
+    let dateEnd = todayStr();
+
+    function todayStr() { return new Date().toISOString().slice(0,10); }
+    function monthStartStr() { return todayStr().slice(0,8) + "01"; }
+    function addDays(dateStr, days) {
+      const d = new Date(dateStr); d.setDate(d.getDate() + days);
+      return d.toISOString().slice(0,10);
+    }
+    function fmtDate(iso) {
+      if (!iso) return "--";
+      const d = new Date(iso);
+      return d.toLocaleDateString("pt-BR") + " " + d.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
+    }
+    function shortClientName(name) {
+      if (!name) return "--";
+      return name.replace("VENEZA EQUIPAMENTOS PESADOS - ", "");
+    }
+
+    // Init
+    document.addEventListener("DOMContentLoaded", () => {
+      document.getElementById("btn-command-link").href = location.protocol + "//" + location.hostname + ":4001";
+      document.getElementById("btn-back-rts").href = location.protocol + "//" + location.hostname + ":8080";
+      document.getElementById("btn-rta-link").href = location.protocol + "//" + location.hostname + ":3021";
+      document.getElementById("btn-rda-link").href = location.protocol + "//" + location.hostname + ":5050";
+      document.getElementById("btn-fi-link").href = location.protocol + "//" + location.hostname + ":8087";
+      document.getElementById("dateStart").value = dateStart;
+      document.getElementById("dateEnd").value = dateEnd;
+      initTabs(); initMap(); initDatePresets(); initFilterChips(); initSearch();
+      refreshAll();
+      startCountdown();
+    });
+
+    function startCountdown() {
+      if (countdownTimer) clearInterval(countdownTimer);
+      let sec = REFRESH_INTERVAL;
+      countdownTimer = setInterval(() => { sec--; if (sec <= 0) { refreshAll(); sec = REFRESH_INTERVAL; } }, 1000);
+    }
+
+    // Date presets
+    function initDatePresets() {
+      document.querySelectorAll(".date-preset").forEach(btn => {
+        btn.addEventListener("click", () => {
+          document.querySelectorAll(".date-preset").forEach(b => b.classList.remove("active"));
+          btn.classList.add("active");
+          const p = btn.dataset.preset;
+          const today = todayStr();
+          if (p === "today") { dateStart = today; dateEnd = today; }
+          else if (p === "yesterday") { dateStart = addDays(today,-1); dateEnd = addDays(today,-1); }
+          else if (p === "7d") { dateStart = addDays(today,-6); dateEnd = today; }
+          else if (p === "30d") { dateStart = addDays(today,-29); dateEnd = today; }
+          else if (p === "month") { dateStart = monthStartStr(); dateEnd = today; }
+          else if (p === "90d") { dateStart = addDays(today,-89); dateEnd = today; }
+          document.getElementById("dateStart").value = dateStart;
+          document.getElementById("dateEnd").value = dateEnd;
+          refreshAll();
+        });
+      });
+    }
+    function applyCustomDates() {
+      dateStart = document.getElementById("dateStart").value;
+      dateEnd = document.getElementById("dateEnd").value;
+      if (!dateStart || !dateEnd) return;
+      document.querySelectorAll(".date-preset").forEach(b => b.classList.remove("active"));
+      refreshAll();
+    }
+
+    function periodQS() { return `start=${dateStart}&end=${dateEnd}`; }
+    function periodLabel() {
+      if (dateStart === dateEnd && dateStart === todayStr()) return "Hoje";
+      if (dateStart === dateEnd) return dateStart.split("-").reverse().join("/");
+      return dateStart.split("-").reverse().join("/") + " a " + dateEnd.split("-").reverse().join("/");
+    }
+
+    // Tabs
+    function initTabs() {
+      document.querySelectorAll(".tab").forEach(tab => {
+        tab.addEventListener("click", () => {
+          document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+          document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
+          tab.classList.add("active");
+          document.getElementById("tab-" + tab.dataset.tab).classList.add("active");
+          if (tab.dataset.tab === "resultados") loadResultados();
+          if (tab.dataset.tab === "processamento") { loadFamilia(); loadCliente(); loadModelo(); loadCompartimento(); loadCanceladas(); }
+        });
+      });
+    }
+
+    // Map
+    function initMap() {
+      map = L.map("map", { center: [-14.2,-51.9], zoom: 4, zoomControl: true, attributionControl: false });
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", { maxZoom: 18 }).addTo(map);
+      markersLayer = L.layerGroup().addTo(map);
+    }
+
+    // Filters
+    function initFilterChips() {
+      document.querySelectorAll("[data-filter-status]").forEach(chip => {
+        chip.addEventListener("click", () => {
+          document.querySelectorAll("[data-filter-status]").forEach(c => c.classList.remove("active"));
+          chip.classList.add("active");
+          currentStatusFilter = chip.dataset.filterStatus;
+          renderResultadosTable(filterResultados());
+        });
+      });
+    }
+    function initSearch() {
+      const el = document.getElementById("searchResultados");
+      let debounce = null;
+      el.addEventListener("input", () => { clearTimeout(debounce); debounce = setTimeout(() => renderResultadosTable(filterResultados()), 200); });
+    }
+    function filterResultados() {
+      const q = document.getElementById("searchResultados").value.toLowerCase().trim();
+      return allResultados.filter(r => {
+        if (currentStatusFilter && (r.status || "").toUpperCase() !== currentStatusFilter) return false;
+        if (!q) return true;
+        return [r.chassi_serie,r.model_name,r.tipo_compartimento_nome,r.nome_compartimento,r.obra,r.cliente,r.cidade,r.estado,r.regional,r.numero_amostra?.toString(),r.avaliacao,r.acoes_inspecao]
+          .filter(Boolean).some(f => String(f).toLowerCase().includes(q));
+      });
+    }
+
+    // Refresh all
+    async function refreshAll() {
+      document.getElementById("statusText").textContent = "Atualizando...";
+      document.getElementById("periodLabel").textContent = periodLabel();
+      try {
+        await Promise.all([loadOverview(), loadAmostrasDia(), loadEstado(), loadCriticos(), loadGeoCriticos()]);
+        document.getElementById("lastUpdate").textContent = new Date().toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
+        document.getElementById("statusText").textContent = "Online";
+      } catch (err) {
+        console.error("[RCA] Erro:", err);
+        document.getElementById("statusText").textContent = "Erro";
+      }
+    }
+
+    // --- API Calls ---
+
+    // Overview
+    async function loadOverview() {
+      const res = await fetch(`${API}/api/rca/overview?${periodQS()}`);
+      const data = await res.json();
+      document.getElementById("totalAmostras").textContent = data.total || 0;
+
+      const statusMap = { NORMAL: 0, ANORMAL: 0, ATENCAO: 0, CRITICO: 0 };
+      for (const row of (data.criticidades || [])) {
+        const key = (row.label || "").toUpperCase();
+        if (statusMap.hasOwnProperty(key)) statusMap[key] = parseInt(row.value, 10);
+      }
+      document.getElementById("countNormal").textContent = statusMap.NORMAL;
+      document.getElementById("countAnormal").textContent = statusMap.ANORMAL;
+      document.getElementById("countAtencao").textContent = statusMap.ATENCAO;
+      document.getElementById("countCritico").textContent = statusMap.CRITICO;
+      document.getElementById("totalCriticos").textContent = statusMap.CRITICO;
+
+      // Chart origem (cliente Veneza — herdado)
+      renderOrigemChart(data.porOrigem || []);
+      // Chart criticidade (barra) — usa os mesmos dados
+      renderCriticidadeBarChart(data.criticidades || []);
+    }
+
+    function renderOrigemChart(rows) {
+      const ctx = document.getElementById("chartOrigem").getContext("2d");
+      if (chartOrigem) chartOrigem.destroy();
+      const labels = rows.map(r => shortClientName(r.cliente));
+      const values = rows.map(r => parseInt(r.total, 10));
+      chartOrigem = new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels,
+          datasets: [{
+            label: "Amostras",
+            data: values,
+            backgroundColor: "rgba(240,171,0,0.7)",
+            borderColor: "#F0AB00",
+            borderWidth: 1,
+            borderRadius: 4,
+          }]
+        },
+        options: {
+          indexAxis: "y",
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            datalabels: { color: "#f5f5f5", anchor: "end", align: "end", font: { weight: 700, size: 12 } }
+          },
+          scales: {
+            x: { grid: { color: "#262626" }, ticks: { color: "#a3a3a3" } },
+            y: { grid: { display: false }, ticks: { color: "#a3a3a3", font: { size: 11 } } }
+          }
+        },
+        plugins: [ChartDataLabels]
+      });
+    }
+
+    // Amostras por dia
+    async function loadAmostrasDia() {
+      const res = await fetch(`${API}/api/rca/amostras-dia?${periodQS()}`);
+      const data = await res.json();
+      renderAmostrasDiaChart(data.data || []);
+    }
+
+    function renderAmostrasDiaChart(rows) {
+      const ctx = document.getElementById("chartAmostrasDia").getContext("2d");
+      if (chartAmostrasDia) chartAmostrasDia.destroy();
+      const labels = rows.map(r => {
+        const d = new Date(r.time);
+        return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+      });
+      const values = rows.map(r => parseInt(r.total, 10));
+      chartAmostrasDia = new Chart(ctx, {
+        type: "line",
+        data: {
+          labels,
+          datasets: [{
+            label: "Amostras",
+            data: values,
+            borderColor: "#F0AB00",
+            backgroundColor: "rgba(240,171,0,0.1)",
+            borderWidth: 2,
+            pointBackgroundColor: "#F0AB00",
+            pointRadius: 3,
+            fill: true,
+            tension: 0.3,
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false }, datalabels: { display: false } },
+          scales: {
+            x: { grid: { color: "#262626" }, ticks: { color: "#a3a3a3", maxRotation: 45, font: { size: 10 } } },
+            y: { grid: { color: "#262626" }, ticks: { color: "#a3a3a3" }, beginAtZero: true }
+          }
+        }
+      });
+    }
+
+    // Criticos (tabela)
+    async function loadCriticos() {
+      const res = await fetch(`${API}/api/rca/criticos?${periodQS()}`);
+      const data = await res.json();
+      document.getElementById("criticosCount").textContent = data.count;
+      renderCriticosTable(data.data || []);
+    }
+
+    function renderCriticosTable(rows) {
+      if (!rows.length) { document.getElementById("criticosTable").innerHTML = '<div class="empty-state">Nenhum resultado critico no periodo</div>'; return; }
+      let html = '<table><thead><tr><th>Amostra</th><th>Status</th><th>Data</th><th>Cliente</th><th>Obra</th></tr></thead><tbody>';
+      for (const r of rows) {
+        html += `<tr>
+          <td>${r.numero_amostra}</td>
+          <td><span class="td-status CRITICO">CRITICO</span></td>
+          <td>${fmtDate(r.data_finalizacao)}</td>
+          <td>${shortClientName(r.cliente_nome)}</td>
+          <td>${r.obra_nome || "--"}</td>
+        </tr>`;
+      }
+      html += '</tbody></table>';
+      document.getElementById("criticosTable").innerHTML = html;
+    }
+
+    // Geo criticos
+    async function loadGeoCriticos() {
+      const res = await fetch(`${API}/api/rca/geo-criticos?${periodQS()}`);
+      const data = await res.json();
+      document.getElementById("geoCount").textContent = data.count;
+      renderMap(data.data || []);
+    }
+
+    function renderMap(rows) {
+      markersLayer.clearLayers();
+      if (!rows.length) return;
+      const bounds = [];
+      for (const r of rows) {
+        const lat = parseFloat(r.latitude), lng = parseFloat(r.longitude);
+        if (!lat || !lng || (lat===0 && lng===0)) continue;
+        bounds.push([lat, lng]);
+        const marker = L.circleMarker([lat, lng], {
+          radius: 8, fillColor: "#ef4444", color: "#991b1b", fillOpacity: 0.85, weight: 2
+        });
+        marker.bindPopup(`<div class="popup-info">
+          <strong>${r.machine_name || "N/A"}</strong>
+          <hr class="popup-divider"/>
+          <span class="popup-label">Amostra</span> <span class="popup-value">${r.numero_amostra || "--"}</span><br/>
+          <span class="popup-label">Status</span> <span class="popup-value" style="color:#ef4444">CRITICO</span><br/>
+          <span class="popup-label">Obra</span> <span class="popup-value">${r.obra_nome || "--"}</span><br/>
+          <span class="popup-label">Local</span> <span class="popup-value">${r.cidade || "?"}, ${r.estado || ""}</span>
+        </div>`, { maxWidth: 300 });
+        markersLayer.addLayer(marker);
+      }
+      if (bounds.length) map.fitBounds(bounds, { padding:[40,40], maxZoom:6 });
+    }
+
+    // Resultados detalhados
+    async function loadResultados() {
+      document.getElementById("resultadosTableWrapper").innerHTML = '<div class="loading"><div class="spinner"></div> Carregando resultados...</div>';
+      const res = await fetch(`${API}/api/rca/resultados?${periodQS()}`);
+      const data = await res.json();
+      allResultados = data.data || [];
+      document.getElementById("resultadosCount").textContent = data.count;
+      renderResultadosTable(filterResultados());
+    }
+
+    function renderResultadosTable(rows) {
+      if (!rows.length) { document.getElementById("resultadosTableWrapper").innerHTML = '<div class="empty-state">Nenhum resultado no periodo</div>'; return; }
+      let html = '<table><thead><tr>'
+        + '<th>Amostra</th><th>Status</th><th>Chassi</th><th>Modelo</th>'
+        + '<th>Tipo Compartimento</th><th>Compartimento</th><th>Data</th>'
+        + '<th>Obra</th><th>Cliente</th><th>Estado</th><th>Cidade</th><th>Regional</th>'
+        + '<th>Avaliacao</th><th>Acoes de Inspecao</th>'
+        + '</tr></thead><tbody>';
+      for (const r of rows) {
+        const statusCls = (r.status || "").toUpperCase();
+        html += `<tr>
+          <td>${r.numero_amostra ?? "--"}</td>
+          <td><span class="td-status ${statusCls}">${statusCls || "--"}</span></td>
+          <td>${r.chassi_serie || "--"}</td>
+          <td>${r.model_name || "--"}</td>
+          <td>${r.tipo_compartimento_nome || "--"}</td>
+          <td>${r.nome_compartimento || "--"}</td>
+          <td>${r.data_resultado || "--"}</td>
+          <td>${r.obra || "--"}</td>
+          <td>${shortClientName(r.cliente)}</td>
+          <td>${r.estado || "--"}</td>
+          <td>${r.cidade || "--"}</td>
+          <td>${r.regional || "--"}</td>
+          <td title="${(r.avaliacao || "").replace(/"/g,'&quot;')}">${truncateText(r.avaliacao, 80)}</td>
+          <td title="${(r.acoes_inspecao || "").replace(/"/g,'&quot;')}">${truncateText(r.acoes_inspecao, 80)}</td>
+        </tr>`;
+      }
+      html += '</tbody></table>';
+      document.getElementById("resultadosTableWrapper").innerHTML = html;
+    }
+
+    function truncateText(s, n) {
+      if (!s) return "--";
+      s = String(s);
+      return s.length > n ? s.slice(0, n) + "..." : s;
+    }
+
+    // Familia de equipamento
+    async function loadFamilia() {
+      const res = await fetch(`${API}/api/rca/amostras-familia?${periodQS()}`);
+      const data = await res.json();
+      renderFamiliaChart(data.data || []);
+    }
+
+    function renderFamiliaChart(rows) {
+      const ctx = document.getElementById("chartFamilia").getContext("2d");
+      if (chartFamilia) chartFamilia.destroy();
+      const labels = rows.map(r => r.familia);
+      const values = rows.map(r => parseInt(r.total_distintos, 10));
+      const colors = ["#F0AB00","#3b82f6","#ef4444","#a855f7","#f97316","#14b8a6"];
+      chartFamilia = new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels,
+          datasets: [{
+            label: "Amostras",
+            data: values,
+            backgroundColor: colors.slice(0, values.length).map(c => c + "cc"),
+            borderColor: colors.slice(0, values.length),
+            borderWidth: 1,
+            borderRadius: 4,
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            datalabels: { color: "#f5f5f5", anchor: "end", align: "top", font: { weight: 700, size: 12 } }
+          },
+          scales: {
+            x: { grid: { display: false }, ticks: { color: "#a3a3a3", font: { size: 10 } } },
+            y: { grid: { color: "#262626" }, ticks: { color: "#a3a3a3" }, beginAtZero: true }
+          }
+        },
+        plugins: [ChartDataLabels]
+      });
+    }
+
+    // Amostras por cliente
+    async function loadCliente() {
+      const res = await fetch(`${API}/api/rca/amostras-cliente?${periodQS()}`);
+      const data = await res.json();
+      renderClienteChart(data.data || []);
+    }
+
+    function renderClienteChart(rows) {
+      const ctx = document.getElementById("chartCliente").getContext("2d");
+      if (chartCliente) chartCliente.destroy();
+      const labels = rows.map(r => r.obra_nome || "--");
+      const values = rows.map(r => parseInt(r.total_distintos, 10));
+      chartCliente = new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels,
+          datasets: [{
+            label: "Amostras",
+            data: values,
+            backgroundColor: "rgba(240,171,0,0.7)",
+            borderColor: "#F0AB00",
+            borderWidth: 1,
+            borderRadius: 4,
+          }]
+        },
+        options: {
+          indexAxis: "y",
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            datalabels: { color: "#f5f5f5", anchor: "end", align: "end", font: { weight: 700, size: 12 } }
+          },
+          scales: {
+            x: { grid: { color: "#262626" }, ticks: { color: "#a3a3a3" } },
+            y: { grid: { display: false }, ticks: { color: "#a3a3a3", font: { size: 10 } } }
+          }
+        },
+        plugins: [ChartDataLabels]
+      });
+    }
+
+    // Estado (barras verticais)
+    async function loadEstado() {
+      const res = await fetch(`${API}/api/rca/amostras-estado?${periodQS()}`);
+      const data = await res.json();
+      renderEstadoChart(data.data || []);
+    }
+
+    function renderEstadoChart(rows) {
+      const ctx = document.getElementById("chartEstado").getContext("2d");
+      if (chartEstado) chartEstado.destroy();
+      const labels = rows.map(r => r.estado || "--");
+      const values = rows.map(r => parseInt(r.total_numero_amostra, 10));
+      chartEstado = new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels,
+          datasets: [{
+            label: "Amostras",
+            data: values,
+            backgroundColor: "rgba(240,171,0,0.7)",
+            borderColor: "#F0AB00",
+            borderWidth: 1,
+            borderRadius: 4,
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            datalabels: { color: "#f5f5f5", anchor: "end", align: "top", font: { weight: 700, size: 12 } }
+          },
+          scales: {
+            x: { grid: { display: false }, ticks: { color: "#a3a3a3", font: { size: 11 } } },
+            y: { grid: { color: "#262626" }, ticks: { color: "#a3a3a3" }, beginAtZero: true }
+          }
+        },
+        plugins: [ChartDataLabels]
+      });
+    }
+
+    // Criticidade (barras verticais - complemento aos cards)
+    // Renderizado a partir dos dados que loadOverview ja buscou.
+    function renderCriticidadeBarChart(rows) {
+      const ctx = document.getElementById("chartCriticidadeBar").getContext("2d");
+      if (chartCriticidadeBar) chartCriticidadeBar.destroy();
+      const ORDER = ["NORMAL","ANORMAL","ATENCAO","CRITICO"];
+      const COLORS = { NORMAL:"#22c55e", ANORMAL:"#f97316", ATENCAO:"#eab308", CRITICO:"#ef4444" };
+      const map = {};
+      for (const r of rows) map[(r.label||"").toUpperCase()] = parseInt(r.value, 10);
+      const labels = ORDER;
+      const values = ORDER.map(k => map[k] || 0);
+      const bg = ORDER.map(k => COLORS[k] + "cc");
+      const bd = ORDER.map(k => COLORS[k]);
+      chartCriticidadeBar = new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels,
+          datasets: [{
+            label: "Amostras",
+            data: values,
+            backgroundColor: bg,
+            borderColor: bd,
+            borderWidth: 1,
+            borderRadius: 4,
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            datalabels: { color: "#f5f5f5", anchor: "end", align: "top", font: { weight: 700, size: 12 } }
+          },
+          scales: {
+            x: { grid: { display: false }, ticks: { color: "#a3a3a3" } },
+            y: { grid: { color: "#262626" }, ticks: { color: "#a3a3a3" }, beginAtZero: true }
+          }
+        },
+        plugins: [ChartDataLabels]
+      });
+    }
+
+    // Modelo (barras verticais)
+    async function loadModelo() {
+      const res = await fetch(`${API}/api/rca/amostras-modelo?${periodQS()}`);
+      const data = await res.json();
+      renderModeloChart(data.data || []);
+    }
+
+    function renderModeloChart(rows) {
+      const ctx = document.getElementById("chartModelo").getContext("2d");
+      if (chartModelo) chartModelo.destroy();
+      const labels = rows.map(r => r.model_name || "--");
+      const values = rows.map(r => parseInt(r.total_numero_amostra, 10));
+      chartModelo = new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels,
+          datasets: [{
+            label: "Amostras",
+            data: values,
+            backgroundColor: "rgba(240,171,0,0.7)",
+            borderColor: "#F0AB00",
+            borderWidth: 1,
+            borderRadius: 4,
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            datalabels: { color: "#f5f5f5", anchor: "end", align: "top", font: { weight: 700, size: 11 } }
+          },
+          scales: {
+            x: { grid: { display: false }, ticks: { color: "#a3a3a3", font: { size: 10 }, maxRotation: 45, minRotation: 0 } },
+            y: { grid: { color: "#262626" }, ticks: { color: "#a3a3a3" }, beginAtZero: true }
+          }
+        },
+        plugins: [ChartDataLabels]
+      });
+    }
+
+    // Compartimento (barras verticais)
+    async function loadCompartimento() {
+      const res = await fetch(`${API}/api/rca/amostras-compartimento?${periodQS()}`);
+      const data = await res.json();
+      renderCompartimentoChart(data.data || []);
+    }
+
+    function renderCompartimentoChart(rows) {
+      const ctx = document.getElementById("chartCompartimento").getContext("2d");
+      if (chartCompartimento) chartCompartimento.destroy();
+      const labels = rows.map(r => r.tipo_compartimento_nome || "--");
+      const values = rows.map(r => parseInt(r.total_numero_amostra, 10));
+      chartCompartimento = new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels,
+          datasets: [{
+            label: "Amostras",
+            data: values,
+            backgroundColor: "rgba(240,171,0,0.7)",
+            borderColor: "#F0AB00",
+            borderWidth: 1,
+            borderRadius: 4,
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            datalabels: { color: "#f5f5f5", anchor: "end", align: "top", font: { weight: 700, size: 12 } }
+          },
+          scales: {
+            x: { grid: { display: false }, ticks: { color: "#a3a3a3", font: { size: 11 } } },
+            y: { grid: { color: "#262626" }, ticks: { color: "#a3a3a3" }, beginAtZero: true }
+          }
+        },
+        plugins: [ChartDataLabels]
+      });
+    }
+
+    // Canceladas/Segregadas
+    async function loadCanceladas() {
+      const res = await fetch(`${API}/api/rca/canceladas?${periodQS()}`);
+      const data = await res.json();
+      document.getElementById("canceladasCount").textContent = data.totais?.length || 0;
+      renderCanceladasTable(data.totais || []);
+    }
+
+    function renderCanceladasTable(rows) {
+      if (!rows.length) { document.getElementById("canceladasTable").innerHTML = '<div class="empty-state">Nenhuma amostra cancelada ou segregada no periodo</div>'; return; }
+      let html = '<table><thead><tr><th>Cliente</th><th>Situacao</th><th>Total</th></tr></thead><tbody>';
+      for (const r of rows) {
+        html += `<tr>
+          <td>${shortClientName(r.cliente_nome)}</td>
+          <td><span class="td-status ${r.situacao === 'CANCELADA' ? 'CRITICO' : 'ATENCAO'}">${r.situacao}</span></td>
+          <td>${r.total_amostras}</td>
+        </tr>`;
+      }
+      html += '</tbody></table>';
+      document.getElementById("canceladasTable").innerHTML = html;
+    }
+
+    // Export CSV
+    function exportResultadosCSV() {
+      const data = filterResultados();
+      if (!data.length) return;
+      const headers = [
+        "numero_amostra","status","chassi_serie","model_name",
+        "tipo_compartimento_nome","nome_compartimento","data_resultado",
+        "obra","cliente","estado","cidade","regional",
+        "latitude","longitude","avaliacao","acoes_inspecao"
+      ];
+      let csv = headers.join(";") + "\n";
+      for (const r of data) {
+        csv += headers.map(h => {
+          let v = r[h] != null ? String(r[h]) : "";
+          return '"' + v.replace(/"/g, '""') + '"';
+        }).join(";") + "\n";
+      }
+      const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = `rca_resultados_${dateStart}_${dateEnd}.csv`; a.click();
+      URL.revokeObjectURL(url);
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,52 @@
+# =========== RTS - REAL TIME SUPPORT ============
+# rts.service — unit systemd para auto-start no boot da VM
+# ================================================
+#
+# Instalação:
+#   sudo cp docker/systemd/rts.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now rts.service
+#
+# Operação:
+#   sudo systemctl status rts
+#   sudo systemctl restart rts
+#   sudo systemctl stop rts
+#   sudo journalctl -u rts -f
+#
+# Ajuste WorkingDirectory se o projeto não estiver em /opt/rts.
+
+[Unit]
+Description=RTS - Real Time Support (docker compose stack)
+Documentation=file:/opt/rts/docker/README.md
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/rts/docker
+
+# Sobe o stack
+ExecStart=/usr/bin/docker compose -f docker-compose.yml up -d
+
+# Firebase deploy — executa apos subir os containers
+ExecStartPost=/bin/bash -c 'cd /opt/rts && firebase deploy --only functions --project rts-real-time-support-6ec6b >> /opt/rts/logs/firebase_deploy.log 2>&1 || echo "[WARN] Firebase deploy falhou — $(date)" >> /opt/rts/logs/firebase_deploy.log'
+
+# Derruba no stop
+ExecStop=/usr/bin/docker compose -f docker-compose.yml down
+
+# Reload faz pull + up --build (caso queira atualizar sem reboot)
+ExecReload=/usr/bin/docker compose -f docker-compose.yml pull
+ExecReload=/usr/bin/docker compose -f docker-compose.yml up -d
+
+# Restart agressivo em caso de falha na inicialização
+Restart=on-failure
+RestartSec=10s
+
+# Logs do compose vão pro journalctl
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

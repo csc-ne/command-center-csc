@@ -1,0 +1,127 @@
+# =========== DFA Dashboard — Dealer Financial Analysis ============
+# docker-compose.yml — 3 serviços: PostgreSQL dedicado + Backend + Frontend
+# ======================================================================
+#
+# Execução:
+#   cd portal/dfa-dashboard/docker
+#   docker compose --env-file C:/env/.env up -d --build
+#
+# .env centralizado em C:\env\.env (Windows Server VM).
+#
+# Portas padrão:
+#   - PostgreSQL: 5435 (host) → 5432 (container)
+#   - Backend API: 4012
+#   - Frontend:    4013
+
+name: dfa-dashboard
+
+services:
+
+  dfa-db:
+    image: postgres:16-alpine
+    container_name: dfa-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       "${DFA_DB_NAME:-dfa_dashboard}"
+      POSTGRES_USER:     "${DFA_DB_USER:-dfa}"
+      POSTGRES_PASSWORD: "${DFA_DB_PASSWORD:-dfa_secret}"
+      TZ: "America/Recife"
+    ports:
+      - "${DFA_DB_HOST_PORT:-5435}:5432"
+    volumes:
+      - dfa-pgdata:/var/lib/postgresql/data
+      - ../database/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DFA_DB_USER:-dfa} -d ${DFA_DB_NAME:-dfa_dashboard}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - dfa-net
+
+  dfa-backend:
+    image: dfa-backend:latest
+    container_name: dfa-backend
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.backend
+    restart: unless-stopped
+    environment:
+      DFA_DB_HOST:     dfa-db
+      DFA_DB_PORT:     "5432"
+      DFA_DB_NAME:     "${DFA_DB_NAME:-dfa_dashboard}"
+      DFA_DB_USER:     "${DFA_DB_USER:-dfa}"
+      DFA_DB_PASSWORD: "${DFA_DB_PASSWORD:-dfa_secret}"
+      DFA_BACKEND_PORT: "4012"
+      PORTAL_JWT_SECRET: "${PORTAL_JWT_SECRET}"
+      DFA_UPLOAD_ALLOWED_EMAILS: "${DFA_UPLOAD_ALLOWED_EMAILS}"
+      TZ: "America/Recife"
+    ports:
+      - "${DFA_BACKEND_PORT:-4012}:4012"
+    depends_on:
+      dfa-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:4012/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - dfa-net
+    volumes:
+      - ../backend/server.js:/app/server.js:ro
+      - ../backend/mapper.js:/app/mapper.js:ro
+      - ../backend/db.js:/app/db.js:ro
+
+  dfa-frontend:
+    image: dfa-frontend:latest
+    container_name: dfa-frontend
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.frontend
+    restart: unless-stopped
+    environment:
+      DFA_FRONTEND_PORT: "4013"
+      DFA_BACKEND_URL:   "http://dfa-backend:4012"
+      TZ: "America/Recife"
+    ports:
+      - "${DFA_FRONTEND_PORT:-4013}:4013"
+    depends_on:
+      dfa-backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:4013/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - dfa-net
+    volumes:
+      - ../frontend/index.html:/app/index.html:ro
+      - ../frontend/server.js:/app/server.js:ro
+
+volumes:
+  dfa-pgdata:
+    driver: local
+
+networks:
+  dfa-net:
+    driver: bridge

@@ -1,0 +1,48 @@
+# =========== PORTAL VENEZANET ============
+# Dockerfile.portal-backend — Backend Node.js (API Auth + MFA)
+# ==========================================
+#
+# Build context: pasta portal/ (um nível acima de docker/).
+
+FROM node:18-alpine AS base
+
+LABEL org.opencontainers.image.title="portal-backend"
+LABEL org.opencontainers.image.description="Venezanet Portal - Backend (Express API Auth + TOTP)"
+
+ENV NODE_ENV=production \
+    TZ=America/Recife \
+    NPM_CONFIG_LOGLEVEL=warn
+
+WORKDIR /app
+
+# -------- Timezone --------
+RUN apk add --no-cache tzdata curl \
+    && cp /usr/share/zoneinfo/$TZ /etc/localtime \
+    && echo "$TZ" > /etc/timezone
+
+# -------- Dependências Node --------
+COPY backend/package.json backend/package-lock.json* /app/backend/
+RUN cd /app/backend && \
+    if [ -f package-lock.json ]; then \
+        npm ci --omit=dev; \
+    else \
+        npm install --omit=dev; \
+    fi
+
+# -------- Código da aplicação --------
+COPY backend/server.js           /app/backend/server.js
+COPY backend/db.js               /app/backend/db.js
+COPY backend/routes/             /app/backend/routes/
+COPY backend/middleware/         /app/backend/middleware/
+COPY backend/services/           /app/backend/services/
+
+# -------- Usuário não-root --------
+RUN chown -R node:node /app
+USER node
+
+EXPOSE 4000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -fsS http://127.0.0.1:4000/healthz || exit 1
+
+CMD ["node", "backend/server.js"]

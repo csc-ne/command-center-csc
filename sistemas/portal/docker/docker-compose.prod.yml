@@ -1,0 +1,114 @@
+# =========== COMMAND CENTER CSC ============
+# docker-compose.prod.yml — Producao / VM (192.168.0.106)
+# =========================================================
+#
+# Execucao (na VM):
+#   cd portal/docker
+#   docker compose --env-file C:/env/.env -f docker-compose.prod.yml up -d --build
+#   docker compose -f docker-compose.prod.yml logs -f
+#   docker compose -f docker-compose.prod.yml down
+#
+# .env centralizado em C:\env\.env (Windows Server VM).
+#
+# Servicos:
+#   portal-backend  — Node.js Express (API Auth + MFA/TOTP)   — porta 4000 (interna)
+#   portal-frontend — Node.js Express (static + proxy -> API) — porta 4001 (host)
+#
+# BANCO DE DADOS: usa o PostgreSQL de PRODUCAO csc_veneza (192.168.0.106:5432),
+# schema command_center. NAO sobe container de banco proprio.
+# Pre-requisito: executar database/command_center_schema.sql no csc_veneza
+# antes do primeiro `up`.
+
+name: csc-portal
+
+services:
+
+  portal-backend:
+    image: portal-backend:latest
+    container_name: portal-backend
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.portal-backend
+    restart: unless-stopped
+    env_file:
+      - C:/env/.env
+    environment:
+      TZ: "America/Recife"
+      NODE_ENV: "production"
+      PORTAL_BACKEND_PORT: "4000"
+      # DB_HOST / DB_PORT / DB_NAME / DB_USER / DB_PASSWORD / DB_SCHEMA
+      # vem de C:\env\.env (banco de producao csc_veneza, schema command_center).
+    expose:
+      - "4000"
+    volumes:
+      - ../backend/server.js:/app/backend/server.js:ro
+      - ../backend/db.js:/app/backend/db.js:ro
+      - ../backend/routes:/app/backend/routes:ro
+      - ../backend/middleware:/app/backend/middleware:ro
+      - ../backend/services:/app/backend/services:ro
+      - C:/env/.env:/app/.env:ro
+    extra_hosts:
+      # Permite ao container alcancar o PostgreSQL csc_veneza no host da VM.
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:4000/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - portal-net
+
+  portal-frontend:
+    image: portal-frontend:latest
+    container_name: portal-frontend
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.portal-frontend
+    restart: unless-stopped
+    env_file:
+      - C:/env/.env
+    environment:
+      TZ: "America/Recife"
+      NODE_ENV: "production"
+      PORTAL_FRONTEND_PORT: "4001"
+      PORTAL_BACKEND_URL: "http://portal-backend:4000"
+    ports:
+      - "${PORTAL_FRONTEND_PORT:-4001}:4001"
+    volumes:
+      - ../frontend/server.js:/app/frontend/server.js:ro
+      - ../frontend/index.html:/app/frontend/index.html:ro
+      - ../frontend/backgroundCSC.jpg:/app/frontend/backgroundCSC.jpg:ro
+      - ../frontend/AdesivoMelhorCSC.png:/app/frontend/AdesivoMelhorCSC.png:ro
+      - ../frontend/login-bg.png:/app/frontend/login-bg.png:ro
+      - ../frontend/PSI.jpeg:/app/frontend/PSI.jpeg:ro
+      - ../frontend/PSI.png:/app/frontend/PSI.png:ro
+      - ../frontend/fleet_inteligence.png:/app/frontend/fleet_inteligence.png:ro
+      - ../frontend/ServicePlan.jpeg:/app/frontend/ServicePlan.jpeg:ro
+      - ../frontend/FieldService.jpeg:/app/frontend/FieldService.jpeg:ro
+      - C:/env/.env:/app/.env:ro
+    depends_on:
+      portal-backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:4001/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - portal-net
+
+networks:
+  portal-net:
+    driver: bridge

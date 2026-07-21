@@ -1,0 +1,159 @@
+# =========== RTS - REAL TIME SUPPORT ============
+# docker-compose.yml — orquestracao dos containers
+# ================================================
+#
+# Servicos:
+#   rts-core       : loop headless (MessageShooter + renovacao de token)
+#   rts-dashboard  : painel web Node/Express/Socket.IO
+#
+# O que NAO entra no compose (continuam no HOST):
+#   - GUI PySide6 (interface/app.py) — operador usa quando precisa
+#   - OAuth John Deere (interface/johndeere/JohnDeereAPI.py) — Selenium com
+#     login humano; o refresh_token gerado e lido do .env pelos containers.
+#
+# Execucao:
+#   docker compose --env-file C:/env/.env -f docker-compose.yml up -d
+#   docker compose -f docker-compose.yml logs -f rts-core
+#   docker compose -f docker-compose.yml down
+#
+# .env centralizado em C:\env\.env (Windows Server VM).
+#
+# OBS: usamos "compose v2" (plugin). Sem versao no topo — o compose v2
+# ignora o campo `version` e emite warning se ele existir.
+
+name: rts
+
+services:
+
+  rts-core:
+    image: rts-core:latest
+    container_name: rts-core
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.core
+    restart: unless-stopped
+    # .env centralizado em C:\env\.env (montado como arquivo abaixo)
+    env_file:
+      - C:/env/.env
+    environment:
+      # Timezone do processo Python (datetime.now() correto)
+      TZ: "America/Recife"
+      # Nivel de log do wrapper rts_core.py
+      RTS_LOG_LEVEL: "INFO"
+      # Janela de expediente (pode sobrescrever via .env se quiser)
+      # RTS_BUSINESS_START: "08:00"
+      # RTS_BUSINESS_END:   "17:50"
+      # RTS_BUSINESS_DAYS:  "0,1,2,3,4"
+    ports:
+      # /status e /healthz — expostos na rede local da VM
+      - "5001:5001"
+    volumes:
+      # Logs persistem no host (assim "docker compose down" nao perde historico)
+      - ../logs:/app/logs
+      # .env centralizado (host: C:\env\.env) montado em /app/.env dentro do container.
+      # NAO usar :ro — whatsapp_api.py/token_wpp_manager.py usam set_key() para
+      # persistir o TKWPP renovado automaticamente. Sem write, a renovacao falha
+      # silenciosamente e o sistema envia com token antigo apos 24h.
+      - C:/env/.env:/app/.env
+      # serviceAccount.json NAO e necessario para rts-core, so para dashboard
+      # --- CODIGO PYTHON (read-only) ---
+      # Bind-mount dos modulos Python que tendem a iterar (config dinamica,
+      # gate de envio, regras de horario). Demais modulos seguem sendo
+      # COPY na imagem. Mudancas aqui exigem RESTART do container
+      # (`docker compose restart rts-core`), nao rebuild.
+      - ../runtime_config.py:/app/runtime_config.py:ro
+      - ../batch_alert_sender.py:/app/batch_alert_sender.py:ro
+      - ../business_hours.py:/app/business_hours.py:ro
+      - ../whatsapp_api.py:/app/whatsapp_api.py:ro
+      - ../main.py:/app/main.py:ro
+      - ../rts_core.py:/app/rts_core.py:ro
+      - ../jd_token_manager.py:/app/jd_token_manager.py:ro
+      - ../alerts_api.py:/app/alerts_api.py:ro
+      # .token_cache.json eh ESCRITO no refresh (JD rotaciona refresh_token), nao usa :ro
+      - ../.token_cache.json:/app/.token_cache.json
+      - ../force_renew_media.py:/app/force_renew_media.py:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:5001/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    # Se o MySQL estiver na VM host, precisamos chegar nele:
+    #   - em Linux, adicione extra_hosts: "host.docker.internal:host-gateway"
+    #   - em Windows/Mac o Docker Desktop ja resolve host.docker.internal
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - rts-net
+
+  rts-dashboard:
+    image: rts-dashboard:latest
+    container_name: rts-dashboard
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.dashboard
+    restart: unless-stopped
+    env_file:
+      - C:/env/.env
+    environment:
+      TZ: "America/Recife"
+      NODE_ENV: "production"
+    ports:
+      # Porta do host pode ser trocada via RTS_DASHBOARD_PORT no .env
+      # (container continua escutando internamente em 8080)
+      - "${RTS_DASHBOARD_PORT:-8080}:8080"
+    volumes:
+      # serviceAccount.json precisa estar disponivel em runtime, NAO na imagem
+      - ../connection/serviceAccount.json:/app/connection/serviceAccount.json:ro
+      # .env montado como arquivo: connection/server.js chama
+      # require("dotenv").config({ path: "/app/.env" }). Sem o arquivo,
+      # o dashboard loga ENOENT mas ainda tenta subir via process.env
+      # (injetado pelo env_file acima). Mantemos o mount para eliminar
+      # o warning e para o server.js reportar corretamente o caminho do .env.
+      # NAO usar :ro — o dashboard pode disparar rotacao de token via WppTokenManager.
+      - C:/env/.env:/app/.env
+      # --- ASSETS WEB (read-only) ---
+      # Bind-mount dos arquivos estaticos servidos pelo Express. Motivo:
+      # o Dockerfile.dashboard faz COPY desses arquivos pra imagem, entao
+      # alteracoes no host so pegam apos "docker compose build". Com os
+      # bind-mounts abaixo, qualquer mudanca em HTML/CSS/JS/src/* pega na
+      # hora (basta Ctrl+F5 no navegador), sem rebuild da imagem. O modo
+      # ":ro" garante que o container nunca escreva nesses arquivos.
+      - ../index.html:/app/index.html:ro
+      - ../login.html:/app/login.html:ro
+      - ../script.js:/app/script.js:ro
+      - ../style.css:/app/style.css:ro
+      - ../src:/app/src:ro
+      - ../logo-rts.png:/app/logo-rts.png:ro
+      # connection/server.js tambem e bind-mount (alteracoes de endpoint
+      # exigiam rebuild antes). O entrypoint do container e
+      # `node connection/server.js`, entao mudancas aqui exigem RESTART
+      # (nao rebuild) — `docker compose restart rts-dashboard`.
+      - ../connection/server.js:/app/connection/server.js:ro
+      - ../connection/db.js:/app/connection/db.js:ro
+      # Logs do rts-core (apenas leitura): dashboard expoe via /api/logs/sistema
+      - ../logs:/app/logs:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - rts-net
+
+networks:
+  rts-net:
+    driver: bridge

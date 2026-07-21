@@ -1,0 +1,61 @@
+# =========== RCA - Relatorio de Coletas e Analises ============
+# docker-compose.yml — container do RCA (separado do RTS/RTA/RDA)
+# =============================================================
+#
+# Execucao:
+#   cd RCA/docker
+#   docker compose --env-file C:/env/.env -f docker-compose.yml up -d
+#   docker compose -f docker-compose.yml logs -f rca
+#   docker compose -f docker-compose.yml down
+#
+# O RCA roda na porta 3031 por padrao (configuravel via RCA_PORT no .env).
+# Ele consulta o PostgreSQL (csc_veneza) em 192.168.0.106.
+# Nao compartilha rede nem volumes com o RTS/RTA/RDA.
+
+name: rca
+
+services:
+
+  rca:
+    image: rca-dashboard:latest
+    container_name: rca-dashboard
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.rca
+    restart: unless-stopped
+    env_file:
+      - C:/env/.env
+    environment:
+      TZ: "America/Recife"
+      NODE_ENV: "production"
+    ports:
+      - "${RCA_PORT:-3031}:3031"
+    volumes:
+      # Bind-mount dos arquivos para desenvolvimento rapido (sem rebuild)
+      - ../backend/server.js:/app/backend/server.js:ro
+      - ../backend/db.js:/app/backend/db.js:ro
+      - ../backend/queries.js:/app/backend/queries.js:ro
+      - ../frontend:/app/frontend:ro
+      # C:\env\.env (host) montado em /app/.env dentro do container.
+      # server.js faz dotenv.config({ path: path.join(__dirname, "..", ".env") }),
+      # que resolve para /app/.env no container.
+      - C:/env/.env:/app/.env:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3031/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - rca-net
+
+networks:
+  rca-net:
+    driver: bridge

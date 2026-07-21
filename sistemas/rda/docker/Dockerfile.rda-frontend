@@ -1,0 +1,46 @@
+# =========== RDA - RELATÓRIOS DE DESEMPENHO AUTOMÁTICOS ============
+# Dockerfile.rda-frontend — Frontend Node.js (proxy + static)
+# ===================================================================
+#
+# Build context: pasta rda/ (um nível acima de docker/).
+# Serve o frontend estático e faz proxy para o backend Flask.
+
+FROM node:18-alpine AS base
+
+LABEL org.opencontainers.image.title="rda-frontend"
+LABEL org.opencontainers.image.description="RDA - Frontend (Express + proxy para Flask)"
+
+ENV NODE_ENV=production \
+    TZ=America/Recife \
+    NPM_CONFIG_LOGLEVEL=warn
+
+WORKDIR /app
+
+# -------- Timezone --------
+RUN apk add --no-cache tzdata curl \
+    && cp /usr/share/zoneinfo/$TZ /etc/localtime \
+    && echo "$TZ" > /etc/timezone
+
+# -------- Dependências Node --------
+COPY frontend/package.json frontend/package-lock.json* /app/frontend/
+RUN cd /app/frontend && \
+    if [ -f package-lock.json ]; then \
+        npm ci --omit=dev; \
+    else \
+        npm install --omit=dev; \
+    fi
+
+# -------- Código da aplicação --------
+COPY frontend/server.js   /app/frontend/server.js
+COPY frontend/index.html  /app/frontend/index.html
+
+# -------- Usuário não-root --------
+RUN chown -R node:node /app
+USER node
+
+EXPOSE 5050
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -fsS http://127.0.0.1:5050/healthz || exit 1
+
+CMD ["node", "frontend/server.js"]

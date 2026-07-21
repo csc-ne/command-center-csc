@@ -1,0 +1,84 @@
+# =============================================================
+# Fleet Intelligence — Production Stack (Command Center)
+# VM 192.168.0.106 — PostgreSQL no host, schema fleet_inteligence.
+# =============================================================
+#
+# Execucao:
+#   cd "Fleet Inteligence"
+#   docker compose --env-file C:/env/.env -f docker-compose.yml up -d --build
+#   docker compose -f docker-compose.yml logs -f
+#   docker compose -f docker-compose.yml down
+#
+# .env centralizado em C:\env\.env (Windows Server VM).
+
+name: fleet-intelligence
+
+services:
+  backend:
+    build: ./backend
+    image: fleet-intelligence-backend:latest
+    container_name: fi-backend
+    restart: unless-stopped
+    env_file:
+      - C:/env/.env
+    environment:
+      TZ: "America/Recife"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    volumes:
+      - fi-uploads:/app/uploads
+      # Bind-mount para desenvolvimento rapido (sem rebuild)
+      - ./backend/app:/app/app:ro
+      - C:/env/.env:/app/.env:ro
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - fi-net
+
+  frontend:
+    build: ./frontend
+    image: fleet-intelligence-frontend:latest
+    container_name: fi-frontend
+    restart: unless-stopped
+    environment:
+      TZ: "America/Recife"
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${FI_PORT:-8087}:80"
+    volumes:
+      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - fi-net
+
+volumes:
+  fi-uploads:
+
+networks:
+  fi-net:
+    driver: bridge

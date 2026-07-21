@@ -1,0 +1,61 @@
+# =========== RDA - RELATÓRIOS DE DESEMPENHO AUTOMÁTICOS ============
+# Dockerfile.rda-backend — Backend Python/Flask (geração de PDF)
+# ===================================================================
+#
+# Build context: pasta rda/ (um nível acima de docker/).
+# Este container é pesado (matplotlib, reportlab, geopandas etc).
+# Separado do frontend para escalabilidade.
+
+FROM python:3.13-slim AS base
+
+LABEL org.opencontainers.image.title="rda-backend"
+LABEL org.opencontainers.image.description="RDA - Backend Flask (geração de relatórios PDF)"
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    MPLBACKEND=Agg \
+    TZ=America/Recife
+
+WORKDIR /app
+
+# -------- Timezone + deps do sistema --------
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    tzdata curl gcc g++ libpq-dev libgdal-dev gdal-bin \
+    libgeos-dev libproj-dev \
+    && ln -fs /usr/share/zoneinfo/$TZ /etc/localtime \
+    && dpkg-reconfigure -f noninteractive tzdata \
+    && rm -rf /var/lib/apt/lists/*
+
+# -------- Dependências Python --------
+COPY docker/requirements.rda.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
+
+# -------- Código da aplicação --------
+COPY backend/__init__.py      /app/backend/__init__.py
+COPY backend/app.py           /app/backend/app.py
+COPY backend/report_0.4.py    /app/backend/report_0.4.py
+COPY kernel/                  /app/kernel/
+COPY pdf/                     /app/pdf/
+COPY fonts/                   /app/fonts/
+COPY labels/                  /app/labels/
+COPY icons/                   /app/icons/
+
+# -------- Diretório de saída --------
+RUN mkdir -p /app/relatorios_gerados /app/relatorios_mensais
+
+EXPOSE 5051
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -fsS http://127.0.0.1:5051/healthz || exit 1
+
+# gunicorn com 1 worker (report usa os.chdir + mutex — mais workers não ajudam).
+# --timeout 1800 = 30 min — relatórios pesados precisam de margem.
+# Threads via gthread dariam conflito com os.chdir; worker sync é seguro.
+CMD ["gunicorn", \
+     "--bind", "0.0.0.0:5051", \
+     "--workers", "1", \
+     "--threads", "4", \
+     "--timeout", "1800", \
+     "--access-logfile", "-", \
+     "--error-logfile", "-", \
+     "backend.app:app"]
