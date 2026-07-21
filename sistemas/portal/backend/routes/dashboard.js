@@ -762,23 +762,25 @@ router.get("/maintenance", requireSession, async (req, res) => {
 // Retorna chassi, cliente, plano, horimetro, horas faltantes, status etc.
 // ---------------------------------------------------------------------------
 const JD_PROTECT_DETAIL = `
-WITH ultimo_horimetro AS (
-    SELECT DISTINCT ON (oeh.principal_id)
-        oeh.principal_id,
-        oeh.reading_value,
-        oeh.reading_unit,
-        oeh.report_time
-    FROM layer_bronze.opc_engine_hours oeh
-    ORDER BY oeh.principal_id, oeh.report_time DESC
-),
-equipamento AS (
+WITH equipamento AS (
+    -- Otimizacao: LATERAL join com LIMIT 1 em vez de DISTINCT ON global.
+    -- A CTE anterior fazia scan de ~7.5M linhas em opc_engine_hours antes de
+    -- deduplicar. Agora fazemos 1 lookup por equipamento (com WHERE + LIMIT 1),
+    -- usando o indice idx_opc_engine_hours_principal_report. Mesmo padrao do
+    -- GARANTIA_DETAIL, que ja roda em ~35s.
     SELECT DISTINCT ON (oe.serial_number)
         oe.serial_number,
         oe.principal_id,
         uh.reading_value,
         uh.report_time
     FROM layer_bronze.opc_equipment oe
-    LEFT JOIN ultimo_horimetro uh ON uh.principal_id = oe.principal_id
+    LEFT JOIN LATERAL (
+        SELECT oeh.reading_value, oeh.report_time
+        FROM layer_bronze.opc_engine_hours oeh
+        WHERE oeh.principal_id = oe.principal_id
+        ORDER BY oeh.report_time DESC
+        LIMIT 1
+    ) uh ON TRUE
     WHERE oe.org_role_in_possession = 'true'
     ORDER BY oe.serial_number,
         CASE WHEN uh.report_time IS NOT NULL THEN 1 ELSE 0 END DESC,
