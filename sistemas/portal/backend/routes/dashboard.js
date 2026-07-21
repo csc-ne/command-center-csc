@@ -958,54 +958,97 @@ SELECT * FROM resultado ORDER BY chassi;
 `;
 
 // ---------------------------------------------------------------------------
-// Cache + inflight protection para detail queries (24h, mesmo padrao)
+// Cache + inflight protection + circuit breaker para detail queries.
+//
+// Cada cache guarda:
+//   - at:         quando o cache foi populado com sucesso
+//   - rows:       ultimo resultado bem-sucedido (preservado mesmo se refresh falhar)
+//   - lastFailAt: quando a ultima tentativa falhou (0 = nunca falhou)
+//
+// Fluxo:
+//   1. Cache fresco (<24h) -> retorna direto
+//   2. Refresh em andamento -> retorna a mesma promise
+//   3. Falhou nos ultimos 10 min -> circuit-break: retorna rows velhas (ou [])
+//      SEM disparar nova query (evita loop de tentativas de 15 min falhando)
+//   4. Caso contrario -> dispara refresh
 // ---------------------------------------------------------------------------
-let _jdProtectDetailCache = { at: 0, rows: null };
+const _CIRCUIT_BREAK_MS = 10 * 60 * 1000;   // 10 min sem re-tentar apos falha
+const _JD_STMT_TIMEOUT_MS = 900000;         // 15 min (query pesada com opc_engine_hours)
+const _GAR_STMT_TIMEOUT_MS = 300000;        // 5 min
+
+let _jdProtectDetailCache = { at: 0, rows: null, lastFailAt: 0 };
 let _jdProtectDetailInflight = null;
+
+async function _refreshJdProtectDetail() {
+  const client = await pool.connect();
+  try {
+    await client.query(`SET statement_timeout = '${_JD_STMT_TIMEOUT_MS}'`);
+    const t0 = Date.now();
+    const { rows } = await client.query(JD_PROTECT_DETAIL);
+    console.log(`[DASHBOARD] jdprotect-detail refresh OK em ${Date.now() - t0}ms, ${rows.length} rows`);
+    _jdProtectDetailCache = { at: Date.now(), rows, lastFailAt: 0 };
+    return rows;
+  } catch (err) {
+    _jdProtectDetailCache = { ..._jdProtectDetailCache, lastFailAt: Date.now() };
+    console.error(`[DASHBOARD] jdprotect-detail refresh FALHOU: ${err.message}`);
+    throw err;
+  } finally {
+    try { await client.query("SET statement_timeout = '0'"); } catch (_) {}
+    client.release();
+    _jdProtectDetailInflight = null;
+  }
+}
+
 async function getJdProtectDetail() {
   const now = Date.now();
   if (_jdProtectDetailCache.rows && now - _jdProtectDetailCache.at < _TTL_24H_MS) {
     return _jdProtectDetailCache.rows;
   }
   if (_jdProtectDetailInflight) return _jdProtectDetailInflight;
-  _jdProtectDetailInflight = (async () => {
-    const client = await pool.connect();
-    try {
-      // 5 min — query pesada com DISTINCT ON em opc_engine_hours (mesma base do machines)
-      await client.query("SET statement_timeout = '300000'");
-      const { rows } = await client.query(JD_PROTECT_DETAIL);
-      await client.query("SET statement_timeout = '0'");
-      _jdProtectDetailCache = { at: Date.now(), rows };
-      return rows;
-    } finally {
-      client.release();
-      _jdProtectDetailInflight = null;
-    }
-  })();
+  if (_jdProtectDetailCache.lastFailAt && now - _jdProtectDetailCache.lastFailAt < _CIRCUIT_BREAK_MS) {
+    const secsAgo = Math.floor((now - _jdProtectDetailCache.lastFailAt) / 1000);
+    console.warn(`[DASHBOARD] jdprotect-detail em circuit-break (falhou ha ${secsAgo}s). Retornando cache velho (${(_jdProtectDetailCache.rows || []).length} rows).`);
+    return _jdProtectDetailCache.rows || [];
+  }
+  _jdProtectDetailInflight = _refreshJdProtectDetail();
   return _jdProtectDetailInflight;
 }
 
-let _garantiaDetailCache = { at: 0, rows: null };
+let _garantiaDetailCache = { at: 0, rows: null, lastFailAt: 0 };
 let _garantiaDetailInflight = null;
+
+async function _refreshGarantiaDetail() {
+  const client = await pool.connect();
+  try {
+    await client.query(`SET statement_timeout = '${_GAR_STMT_TIMEOUT_MS}'`);
+    const t0 = Date.now();
+    const { rows } = await client.query(GARANTIA_DETAIL);
+    console.log(`[DASHBOARD] garantia-detail refresh OK em ${Date.now() - t0}ms, ${rows.length} rows`);
+    _garantiaDetailCache = { at: Date.now(), rows, lastFailAt: 0 };
+    return rows;
+  } catch (err) {
+    _garantiaDetailCache = { ..._garantiaDetailCache, lastFailAt: Date.now() };
+    console.error(`[DASHBOARD] garantia-detail refresh FALHOU: ${err.message}`);
+    throw err;
+  } finally {
+    try { await client.query("SET statement_timeout = '0'"); } catch (_) {}
+    client.release();
+    _garantiaDetailInflight = null;
+  }
+}
+
 async function getGarantiaDetail() {
   const now = Date.now();
   if (_garantiaDetailCache.rows && now - _garantiaDetailCache.at < _TTL_24H_MS) {
     return _garantiaDetailCache.rows;
   }
   if (_garantiaDetailInflight) return _garantiaDetailInflight;
-  _garantiaDetailInflight = (async () => {
-    const client = await pool.connect();
-    try {
-      await client.query("SET statement_timeout = '120000'");
-      const { rows } = await client.query(GARANTIA_DETAIL);
-      await client.query("SET statement_timeout = '0'");
-      _garantiaDetailCache = { at: Date.now(), rows };
-      return rows;
-    } finally {
-      client.release();
-      _garantiaDetailInflight = null;
-    }
-  })();
+  if (_garantiaDetailCache.lastFailAt && now - _garantiaDetailCache.lastFailAt < _CIRCUIT_BREAK_MS) {
+    const secsAgo = Math.floor((now - _garantiaDetailCache.lastFailAt) / 1000);
+    console.warn(`[DASHBOARD] garantia-detail em circuit-break (falhou ha ${secsAgo}s). Retornando cache velho (${(_garantiaDetailCache.rows || []).length} rows).`);
+    return _garantiaDetailCache.rows || [];
+  }
+  _garantiaDetailInflight = _refreshGarantiaDetail();
   return _garantiaDetailInflight;
 }
 
@@ -1036,13 +1079,30 @@ router.get("/maintenance-detail", requireSession, async (req, res) => {
       return res.json({ success: true, type, rows: [], warming: true });
     }
 
-    // Nenhum cache nem inflight — executar agora (raro: so se warming nao disparou)
+    // Nenhum cache nem inflight — executar agora.
+    // getXDetail() ja aplica circuit breaker; se falhou recentemente, retorna
+    // cache velho SEM disparar nova query pesada. Se lancar, retorna warming
+    // vazio para o frontend nao ver 500 e continuar o polling.
     const t0 = Date.now();
-    const rows = type === "jdprotect"
-      ? await getJdProtectDetail()
-      : await getGarantiaDetail();
-    console.log(`[DASHBOARD] maintenance-detail(${type}): ${Date.now() - t0}ms, ${rows.length} rows`);
-    return res.json({ success: true, type, rows });
+    try {
+      const rows = type === "jdprotect"
+        ? await getJdProtectDetail()
+        : await getGarantiaDetail();
+      console.log(`[DASHBOARD] maintenance-detail(${type}): ${Date.now() - t0}ms, ${rows.length} rows`);
+      return res.json({ success: true, type, rows });
+    } catch (queryErr) {
+      // Query falhou (timeout ou erro de schema). Nao propaga 500: o frontend
+      // tem retry automatico e trava no console se recebe erro HTTP.
+      console.error(`[DASHBOARD] maintenance-detail(${type}) query FALHOU: ${queryErr.message}`);
+      const fallback = type === "jdprotect"
+        ? (_jdProtectDetailCache.rows || [])
+        : (_garantiaDetailCache.rows || []);
+      return res.json({
+        success: true, type, rows: fallback,
+        stale: fallback.length > 0,
+        warming: fallback.length === 0,
+      });
+    }
   } catch (err) {
     console.error("[DASHBOARD] Erro em /maintenance-detail:", err.message);
     return res.status(500).json({ success: false, error: "Erro ao carregar detalhamento." });
