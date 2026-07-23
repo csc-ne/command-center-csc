@@ -1,0 +1,17 @@
+{
+  "name": "wirtgen-alert-center-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Backend do Wirtgen Alert Center (leitura csc_veneza)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "pg": "^8.13.1"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "wirtgen-alert-center-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Frontend do Wirtgen Alert Center (proxy /api → backend, serve HTML)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2"
+  }
+}
