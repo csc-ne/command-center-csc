@@ -7,14 +7,19 @@ const _envPath = process.platform === 'win32'
   : path.join(__dirname, '..', '.env');
 require('dotenv').config({ path: _envPath });
 
-const express = require('express');
-const http    = require('http');
+const express     = require('express');
+const http        = require('http');
+const compression = require('compression');
 
 const app  = express();
 const PORT = Number(process.env.WAC_FRONTEND_PORT || 4017);
 const BACKEND_URL = process.env.WAC_BACKEND_URL || 'http://wac-backend:4016';
 
 const backendParsed = new URL(BACKEND_URL);
+
+// gzip em todas as respostas (HTML, JSON da API proxiada, assets).
+// Reduz o transfer size do JSON de alertas em ~70-85%.
+app.use(compression());
 
 // ─── Manual proxy /api → backend ─────────────────────────────────────────────
 app.use('/api', (req, res) => {
@@ -51,6 +56,13 @@ app.use('/api', (req, res) => {
 });
 
 app.get('/healthz', (_req, res) => res.json({ status: 'ok', service: 'wirtgen-alert-center-frontend' }));
+
+// Assets versionaveis (imagens, logos) — cache longo, pois nao mudam frequentemente.
+app.use('/assets', express.static(path.join(__dirname, 'assets'), {
+  maxAge: '30d',
+  etag: true,
+  immutable: true
+}));
 
 // Arquivos estáticos (index.html + data-source.js)
 app.use(express.static(path.join(__dirname), { maxAge: '1h', etag: true }));

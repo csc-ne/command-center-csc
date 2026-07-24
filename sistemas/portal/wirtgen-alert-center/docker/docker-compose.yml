@@ -94,6 +94,7 @@ services:
       - ../frontend/server.js:/app/server.js:ro
       - ../frontend/index.html:/app/index.html:ro
       - ../frontend/data-source.js:/app/data-source.js:ro
+      - ../frontend/assets:/app/assets:ro
 
 networks:
   wac-net:
