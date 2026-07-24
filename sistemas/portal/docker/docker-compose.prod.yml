@@ -91,6 +91,7 @@ services:
       - ../frontend/fleet_inteligence.png:/app/frontend/fleet_inteligence.png:ro
       - ../frontend/ServicePlan.jpeg:/app/frontend/ServicePlan.jpeg:ro
       - ../frontend/FieldService.jpeg:/app/frontend/FieldService.jpeg:ro
+      - ../frontend/wirtgen-alert-center.png:/app/frontend/wirtgen-alert-center.png:ro
       - C:/env/.env:/app/.env:ro
     depends_on:
       portal-backend:
