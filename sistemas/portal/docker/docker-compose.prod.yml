@@ -85,6 +85,7 @@ services:
       - ../frontend/index.html:/app/frontend/index.html:ro
       - ../frontend/backgroundCSC.jpg:/app/frontend/backgroundCSC.jpg:ro
       - ../frontend/AdesivoMelhorCSC.png:/app/frontend/AdesivoMelhorCSC.png:ro
+      - ../frontend/LogoAnalyticsCSC.png:/app/frontend/LogoAnalyticsCSC.png:ro
       - ../frontend/login-bg.png:/app/frontend/login-bg.png:ro
       - ../frontend/PSI.jpeg:/app/frontend/PSI.jpeg:ro
       - ../frontend/PSI.png:/app/frontend/PSI.png:ro
